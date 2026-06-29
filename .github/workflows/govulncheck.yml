@@ -1,0 +1,31 @@
+name: govulncheck
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # The Go vulnerability database updates independently of code changes;
+  # without a schedule, a new CVE goes unnoticed until the next PR.
+  schedule:
+    - cron: "0 1 * * *" # daily 10:00 JST
+
+permissions:
+  contents: read
+
+concurrency:
+  group: govulncheck-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      # The action checks out the repository itself (repo-checkout: true).
+      - uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
+        with:
+          # go-version-input defaults to "stable", which setup-go prefers over
+          # go-version-file; empty it so the go.mod toolchain is what we scan
+          # with. Scanning "stable" would mask stdlib vulns in local builds.
+          go-version-input: ""
+          go-version-file: go.mod

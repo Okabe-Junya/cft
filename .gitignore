@@ -1,0 +1,20 @@
+# Build artifacts
+/bin/
+/dist/
+*.test
+*.out
+coverage.out
+coverage.html
+
+# Go workspace
+go.work
+go.work.sum
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Per-project Claude Code state
+.claude/

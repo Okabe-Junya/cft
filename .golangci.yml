@@ -1,0 +1,23 @@
+version: "2"
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - errorlint
+    - copyloopvar
+  settings:
+    errcheck:
+      exclude-functions:
+        # CLI output to stdout/stderr/tabwriter; a failed terminal write has
+        # no recovery path here.
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (*text/tabwriter.Writer).Flush
+        # Read paths and Sync-protected write paths only (store.rewrite calls
+        # f.Sync() before Close).
+        - (*os.File).Close
+
+formatters:
+  enable:
+    - goimports

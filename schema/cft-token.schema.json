@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/Okabe-Junya/cft/main/schema/cft-token.schema.json",
+  "title": "cft token spec",
+  "description": "One Cloudflare API token managed by cft. A file may contain multiple documents separated by '---'; the schema applies to each document.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "policies"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Token name. DNS-1123 label: lowercase alphanumeric or '-', starts and ends alphanumeric, at most 63 characters. Must be unique across all specs.",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+      "maxLength": 63,
+      "examples": ["dns-editor-example-com"]
+    },
+    "policies": {
+      "type": "array",
+      "description": "Access policies attached to the token. At least one is required.",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/policy" }
+    },
+    "expires": {
+      "type": "string",
+      "description": "Expiry as an RFC3339 timestamp or a YYYY-MM-DD date.",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2}))?$",
+      "examples": ["2026-09-01", "2026-09-01T00:00:00Z"]
+    }
+  },
+  "definitions": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["permissions"],
+      "properties": {
+        "permissions": {
+          "type": "array",
+          "description": "Cloudflare permission group names, e.g. \"DNS Write\".",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "zone": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Zone name the policy applies to. Exactly one of zone, account, user must be set."
+        },
+        "account": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Account name or ID the policy applies to. Exactly one of zone, account, user must be set."
+        },
+        "user": {
+          "type": "boolean",
+          "description": "Set to true to scope the policy to user-level resources. Exactly one of zone, account, user must be set."
+        },
+        "effect": {
+          "type": "string",
+          "enum": ["allow", "deny"],
+          "default": "allow",
+          "description": "Whether the policy allows or denies the listed permissions. Defaults to allow."
+        }
+      },
+      "oneOf": [
+        {
+          "required": ["zone"],
+          "not": { "anyOf": [{ "required": ["account"] }, { "required": ["user"] }] }
+        },
+        {
+          "required": ["account"],
+          "not": { "anyOf": [{ "required": ["zone"] }, { "required": ["user"] }] }
+        },
+        {
+          "required": ["user"],
+          "properties": { "user": { "const": true } },
+          "not": { "anyOf": [{ "required": ["zone"] }, { "required": ["account"] }] }
+        }
+      ]
+    }
+  }
+}
