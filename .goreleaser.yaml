@@ -1,0 +1,69 @@
+# goreleaser configuration for cft.
+# The binary reads its version from Go's VCS stamping (debug.ReadBuildInfo),
+# so we deliberately do NOT inject -X main.version...; ldflags mirror the
+# Makefile build target (-s -w with -trimpath).
+version: 2
+
+project_name: cft
+
+builds:
+  - id: cft
+    main: ./cmd/cft
+    binary: cft
+    # Keychain backend uses cgo (Security.framework); darwin only.
+    env:
+      - CGO_ENABLED=1
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+
+archives:
+  - id: cft
+    formats: [tar.gz]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+# The `brews` (formula) key is deprecated in goreleaser v2; the current major
+# generates Homebrew casks for pre-compiled binaries instead. Casks have no
+# `test do` block, so the requested `cft --version` smoke test is not expressible
+# here.
+homebrew_casks:
+  - name: cft
+    binaries:
+      - cft
+    repository:
+      owner: Okabe-Junya
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Casks
+    homepage: https://github.com/Okabe-Junya/cft
+    description: macOS-only CLI for managing least-privilege Cloudflare API tokens declaratively.
+    commit_msg_template: "chore(formula): update cft to {{ .Tag }}"
+    # The binaries carry only Go's ad-hoc signature (no Developer ID /
+    # notarization yet), so strip the Gatekeeper quarantine flag on install.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/cft"]
+          end
