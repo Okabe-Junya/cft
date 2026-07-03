@@ -47,6 +47,23 @@ policies:
 expires: 2026-09-01
 ```
 
+## Shell completion
+
+The Homebrew cask installs bash, zsh, and fish completions automatically — start
+a new shell after `brew install` and completion works. (Homebrew symlinks them
+into its completion directories; ensure your shell sources Homebrew's completion
+setup, e.g. `autoload -Uz compinit && compinit` for zsh.)
+
+For non-Homebrew installs, generate the script yourself:
+
+```sh
+cft completion zsh  > "$(brew --prefix)/share/zsh/site-functions/_cft"   # zsh
+cft completion bash > /usr/local/etc/bash_completion.d/cft                # bash
+cft completion fish > ~/.config/fish/completions/cft.fish                 # fish
+```
+
+Run `cft completion --help` for the details of each shell.
+
 ## Multiple accounts (profiles)
 
 A **profile** bundles one Cloudflare account's bootstrap token and its managed

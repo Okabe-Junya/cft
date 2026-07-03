@@ -6,6 +6,13 @@ version: 2
 
 project_name: cft
 
+# Generate shell completions before building so they can be bundled into the
+# archives and installed by the Homebrew cask (casks have no `zsh_completion`
+# DSL of their own).
+before:
+  hooks:
+    - ./scripts/completions.sh
+
 builds:
   - id: cft
     main: ./cmd/cft
@@ -29,6 +36,7 @@ archives:
     files:
       - LICENSE
       - README.md
+      - completions/*
 
 checksum:
   name_template: checksums.txt
@@ -56,6 +64,12 @@ homebrew_casks:
       branch: main
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Casks
+    # Ship the Cobra-generated completions bundled in the archive. Homebrew
+    # symlinks these into its completion dirs so bash/zsh/fish pick them up.
+    completions:
+      bash: completions/cft.bash
+      zsh: completions/cft.zsh
+      fish: completions/cft.fish
     homepage: https://github.com/Okabe-Junya/cft
     description: macOS-only CLI for managing least-privilege Cloudflare API tokens declaratively.
     commit_msg_template: "chore(formula): update cft to {{ .Tag }}"
