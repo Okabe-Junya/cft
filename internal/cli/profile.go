@@ -195,9 +195,10 @@ func runProfileList(cmd *cobra.Command, deps profileDeps) error {
 
 func newProfileUseCmd(deps profileDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "use <name>",
-		Short: "Set the current profile",
-		Args:  cobra.ExactArgs(1),
+		Use:               "use <name>",
+		Short:             "Set the current profile",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeProfileNames(deps.load),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 			// Warn (do not block) if the target has no credentials yet, so a

@@ -42,7 +42,8 @@ func newRotateCmd(deps rotateDeps) *cobra.Command {
 		Long: "Calls /user/tokens/<id>/value to mint a new value and overwrites the Keychain entry. " +
 			"The token's policy and ID are untouched; only the secret rotates. " +
 			"Any process still holding the old value will start failing at this point.",
-		Args: cobra.ExactArgs(1),
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeTokenNames(loaderFromPath(deps.indexPath)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 			path, err := deps.indexPath()
