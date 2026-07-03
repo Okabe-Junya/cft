@@ -64,6 +64,30 @@ cft completion fish > ~/.config/fish/completions/cft.fish                 # fish
 
 Run `cft completion --help` for the details of each shell.
 
+Completion is dynamic: `cft rotate`, `cft exec`, and `cft delete` complete your
+managed token names (scoped to the selected profile), and `cft profile use`
+completes profile names. Suggestions come from the local index, so no network
+call or Keychain prompt happens while you type.
+
+### Amazon Q / Fig popup
+
+The IDE-style popup from [Amazon Q for command line](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line.html)
+(formerly Fig) does **not** use the shell scripts above — it reads a *completion
+spec*. `cft generate-fig-spec` prints one built from the command tree. Install it
+as a personal spec:
+
+```sh
+mkdir -p /tmp/cft-fig/src && cd /tmp/cft-fig
+cft generate-fig-spec > src/cft.ts
+npx @withfig/autocomplete-tools@latest compile --outdir build   # -> build/cft.js
+mkdir -p ~/.fig/autocomplete/build && cp build/cft.js ~/.fig/autocomplete/build/
+```
+
+Restart the terminal and `cft <subcommand>` shows the popup. The spec is static
+(subcommands, flags, positional slots); dynamic token names still complete via
+the shell scripts above. See the [private-spec guide](https://fig.io/docs/guides/private-autocomplete)
+if the popup does not appear.
+
 ## Multiple accounts (profiles)
 
 A **profile** bundles one Cloudflare account's bootstrap token and its managed

@@ -37,7 +37,8 @@ func newExecCmd(load indexLoader, ks keychain.Store, run execer) *cobra.Command 
 			"(which may prompt for Touch ID), and execs <command> with " + EnvName + " set. " +
 			"The '--' separator is required so cobra leaves the child's flags alone.",
 		// Custom args check; cobra's MinimumNArgs cannot tell us where '--' was.
-		Args: cobra.ArbitraryArgs,
+		Args:              cobra.ArbitraryArgs,
+		ValidArgsFunction: completeTokenNames(load),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name, argv, err := splitExecArgs(args, cmd.ArgsLenAtDash())
 			if err != nil {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/Okabe-Junya/cft/internal/keychain"
 	"github.com/spf13/cobra"
+	cobracompletefig "github.com/withfig/autocomplete-tools/integrations/cobra"
 )
 
 // Exit code conventions, per docs/design.md §12. Subcommands signal a code
@@ -71,6 +72,10 @@ func newRootCmd(version string) *cobra.Command {
 	root.AddCommand(newDeleteCmd(defaultDeleteDeps(ks)))
 	root.AddCommand(newSchemaCmd())
 	root.AddCommand(newProfileCmd(defaultProfileDeps(loginKS)))
+	// Hidden `generate-fig-spec`: emits a Fig/Amazon Q autocomplete spec built
+	// from this command tree, for the IDE-style popup (which does not use the
+	// shell completion scripts). See README "Shell completion".
+	root.AddCommand(cobracompletefig.CreateCompletionSpecCommand())
 	return root
 }
 

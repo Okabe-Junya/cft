@@ -43,7 +43,8 @@ func newDeleteCmd(deps deleteDeps) *cobra.Command {
 		Short: "Delete a token from Cloudflare, the Keychain, and the local index",
 		Long: "Removes the token in three steps: Cloudflare DELETE, Keychain Delete, index Delete. " +
 			"A 404 from Cloudflare is treated as 'already gone' and the cleanup continues so the local state cannot drift.",
-		Args: cobra.ExactArgs(1),
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeTokenNames(loaderFromPath(deps.indexPath)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 			path, err := deps.indexPath()
