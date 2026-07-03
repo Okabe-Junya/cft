@@ -9,8 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// fixtureLoader returns an indexLoader serving a two-profile index: "default"
-// with two tokens and "work" with one.
 func fixtureLoader() indexLoader {
 	return func() (*store.Index, error) {
 		idx := store.NewIndex()
@@ -23,11 +21,11 @@ func fixtureLoader() indexLoader {
 	}
 }
 
-// profileCmd builds a command carrying the --profile persistent flag set to
-// val, mirroring how the real root wires it, so selectedProfile can resolve it.
+// profileCmd builds a command carrying the --profile flag set to val so
+// selectedProfile can resolve it.
 func profileCmd(t *testing.T, val string) *cobra.Command {
 	t.Helper()
-	t.Setenv(EnvProfile, "") // keep $CFT_PROFILE out of the resolution
+	t.Setenv(EnvProfile, "")
 	cmd := &cobra.Command{}
 	cmd.Flags().String("profile", "", "")
 	if val != "" {

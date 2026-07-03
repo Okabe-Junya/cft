@@ -8,19 +8,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// completionFunc is the shape cobra expects for dynamic argument completion
-// (ValidArgsFunction). It runs in a throwaway `cft __complete ...` process the
-// shell spawns, so it must be cheap and must never prompt or hit the network —
-// it only reads the local index.
 type completionFunc func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective)
 
-// completeTokenNames suggests managed token names in the selected profile for
-// the first positional argument (the <name> of rotate/exec/delete). load is
-// the same index seam the command uses, so tests can inject a fixture.
-//
-// Only the first argument is a token name; once it is set we return
-// ShellCompDirectiveDefault so callers like `exec <name> -- <cmd>` fall back to
-// the shell's own file/command completion for the child command.
+// completeTokenNames suggests token names in the selected profile for the first
+// positional argument. Once it is set we return Default so `exec <name> -- <cmd>`
+// falls back to the shell's own completion for the child command.
 func completeTokenNames(load indexLoader) completionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {
@@ -28,8 +20,6 @@ func completeTokenNames(load indexLoader) completionFunc {
 		}
 		idx, err := load()
 		if err != nil {
-			// A missing or unreadable index is not an error at completion
-			// time — just offer nothing and suppress noisy file completion.
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
 		profile := selectedProfile(cmd, idx)
@@ -37,8 +27,6 @@ func completeTokenNames(load indexLoader) completionFunc {
 	}
 }
 
-// completeProfileNames suggests known profile names for the first positional
-// argument (the <name> of `profile use`).
 func completeProfileNames(load indexLoader) completionFunc {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {
@@ -52,8 +40,6 @@ func completeProfileNames(load indexLoader) completionFunc {
 	}
 }
 
-// loaderFromPath adapts the (indexPath, store.Load) pair some commands hold
-// into the indexLoader seam the completion helpers expect.
 func loaderFromPath(indexPath func() (string, error)) indexLoader {
 	return func() (*store.Index, error) {
 		path, err := indexPath()
@@ -64,7 +50,6 @@ func loaderFromPath(indexPath func() (string, error)) indexLoader {
 	}
 }
 
-// names returns the keys of an entry map.
 func names(entries map[string]store.Entry) []string {
 	out := make([]string, 0, len(entries))
 	for n := range entries {
@@ -73,9 +58,6 @@ func names(entries map[string]store.Entry) []string {
 	return out
 }
 
-// filterSorted keeps the candidates that start with prefix and returns them
-// sorted. cobra also filters by prefix, but doing it here keeps the suggestion
-// list small and deterministic.
 func filterSorted(candidates []string, prefix string) []string {
 	out := make([]string, 0, len(candidates))
 	for _, c := range candidates {

@@ -72,9 +72,8 @@ func newRootCmd(version string) *cobra.Command {
 	root.AddCommand(newDeleteCmd(defaultDeleteDeps(ks)))
 	root.AddCommand(newSchemaCmd())
 	root.AddCommand(newProfileCmd(defaultProfileDeps(loginKS)))
-	// Hidden `generate-fig-spec`: emits a Fig/Amazon Q autocomplete spec built
-	// from this command tree, for the IDE-style popup (which does not use the
-	// shell completion scripts). See README "Shell completion".
+	// Hidden `generate-fig-spec`: emits a Fig/Amazon Q autocomplete spec for the
+	// IDE-style popup, which does not use the shell completion scripts.
 	root.AddCommand(cobracompletefig.CreateCompletionSpecCommand())
 	return root
 }
