@@ -65,16 +65,8 @@ cft completion fish > ~/.config/fish/completions/cft.fish                 # fish
 `cft rotate`, `exec`, and `delete` complete token names (scoped to the selected
 profile) and `cft profile use` completes profile names, read from the local index.
 
-For the [Amazon Q](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line.html)
-/ Fig popup (which uses a *completion spec*, not the shell scripts), install the
-spec `cft generate-fig-spec` prints:
-
-```sh
-mkdir -p /tmp/cft-fig/src && cd /tmp/cft-fig
-cft generate-fig-spec > src/cft.ts
-npx @withfig/autocomplete-tools@latest compile --outdir build
-cp build/cft.js ~/.fig/autocomplete/build/
-```
+The Amazon Q / Kiro CLI popup uses its own bundled completion specs, not these
+scripts; `cft`'s spec is maintained upstream in [withfig/autocomplete](https://github.com/withfig/autocomplete).
 
 ## Multiple accounts (profiles)
 
