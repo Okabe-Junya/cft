@@ -1,0 +1,67 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # CodeQL query packs ship independently of code changes; a weekly re-scan of
+  # main lets a newly-published rule flag existing code even when nothing merges.
+  schedule:
+    - cron: "0 2 * * 1" # Mondays 11:00 JST
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      # Upload SARIF results to the code-scanning dashboard.
+      security-events: write
+      # The `actions` pack reads workflow run metadata to resolve reusable calls.
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Go is compiled; autobuild resolves modules and drives the compiler
+          # so the extractor can trace the build.
+          - language: go
+            build-mode: autobuild
+          # Workflow files are analyzed statically — no build step.
+          - language: actions
+            build-mode: none
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # Pin the toolchain to go.mod so autobuild matches what we ship locally.
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        if: matrix.language == 'go'
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4.36.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # security-extended adds high-precision security queries beyond the
+          # default suite; quality queries stay out — golangci-lint owns those.
+          queries: security-extended
+
+      - name: Autobuild
+        if: matrix.build-mode == 'autobuild'
+        uses: github/codeql-action/autobuild@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4.36.3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4.36.3
+        with:
+          category: "/language:${{ matrix.language }}"
