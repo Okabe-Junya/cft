@@ -65,9 +65,6 @@ cft completion fish > ~/.config/fish/completions/cft.fish                 # fish
 `cft rotate`, `exec`, and `delete` complete token names (scoped to the selected
 profile) and `cft profile use` completes profile names, read from the local index.
 
-The Amazon Q / Kiro CLI popup uses its own bundled completion specs, not these
-scripts; `cft`'s spec is maintained upstream in [withfig/autocomplete](https://github.com/withfig/autocomplete).
-
 ## Multiple accounts (profiles)
 
 A **profile** bundles one Cloudflare account's bootstrap token and its managed
