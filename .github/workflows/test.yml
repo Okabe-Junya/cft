@@ -15,9 +15,12 @@ concurrency:
 jobs:
   test:
     name: test
-    # Stay on ubuntu until we have macOS-specific code (Keychain) that actually
-    # needs to run in CI; the integration tests are local/macOS only.
-    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
@@ -28,3 +31,7 @@ jobs:
 
       - name: go test
         run: go test -race -shuffle=on ./...
+
+      - name: integration test (darwin keychain)
+        if: matrix.os == 'macos-latest'
+        run: make integration
