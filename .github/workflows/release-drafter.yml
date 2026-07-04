@@ -3,7 +3,7 @@ name: Release Drafter
 on:
   push:
     branches: [main]
-  # Needed by the autolabeler; on a PR event only labels are applied.
+  # Needed by the autolabeler job.
   pull_request:
     types: [opened, reopened, synchronize]
 
@@ -14,15 +14,27 @@ concurrency:
   group: release-drafter-${{ github.ref }}
   cancel-in-progress: true
 
+# release-drafter v7 splits the drafter and the autolabeler into two actions,
+# so they run as separate jobs gated on the event.
 jobs:
-  update_release_draft:
+  draft:
+    if: github.event_name == 'push'
     permissions:
       contents: write # create / update the release draft
-      pull-requests: write # autolabeler writes labels onto PRs
+      pull-requests: read # read merged PRs to build the notes
     runs-on: ubuntu-latest
     steps:
-      # The action auto-detects the event: it updates the draft on push to main
-      # and runs the autolabeler on pull_request events.
       - uses: release-drafter/release-drafter@4d75298e00d9e34c483e5ff8c68d0ea1c1940c1e # v7.5.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  autolabel:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write # apply category + release/* labels to the PR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: release-drafter/release-drafter/autolabeler@4d75298e00d9e34c483e5ff8c68d0ea1c1940c1e # v7.5.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
