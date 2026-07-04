@@ -21,10 +21,8 @@ jobs:
       pull-requests: write # autolabeler writes labels onto PRs
     runs-on: ubuntu-latest
     steps:
+      # The action auto-detects the event: it updates the draft on push to main
+      # and runs the autolabeler on pull_request events.
       - uses: release-drafter/release-drafter@4d75298e00d9e34c483e5ff8c68d0ea1c1940c1e # v7.5.1
-        with:
-          # Draft only on push to main; on PR events just run the autolabeler.
-          disable-releaser: ${{ github.event_name == 'pull_request' }}
-          disable-autolabeler: ${{ github.event_name == 'push' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
