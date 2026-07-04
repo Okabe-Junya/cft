@@ -50,6 +50,13 @@ changelog:
       - "^test:"
       - "^chore:"
 
+# The release already exists when this runs (release-drafter created it, a human
+# published it). keep-existing uploads the archives without overwriting the
+# drafted release notes. This is the goreleaser default; set explicitly so the
+# publish-driven flow is self-documenting.
+release:
+  mode: keep-existing
+
 # The `brews` (formula) key is deprecated in goreleaser v2; the current major
 # generates Homebrew casks for pre-compiled binaries instead. Casks have no
 # `test do` block, so the requested `cft --version` smoke test is not expressible
