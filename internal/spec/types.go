@@ -1,5 +1,5 @@
 // Package spec defines the on-disk YAML schema for cft tokens and provides
-// parsing and validation. See docs/design.md §4.
+// parsing and validation.
 package spec
 
 const (

@@ -104,8 +104,8 @@ const (
 )
 
 // expiringSoonWindow is the threshold for the "soon" warning. Hard-coded for
-// v1 — design.md §15 Open Question #4 leaves the exact value to the
-// implementer; 30d matches the dashboard convention.
+// v1 — the exact value is left open for a future implementer to tune; 30d
+// matches the dashboard convention.
 const expiringSoonWindow = 30 * 24 * time.Hour
 
 // expiresStyle classifies a row by its expires value. Empty or unparseable

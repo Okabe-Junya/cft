@@ -11,7 +11,7 @@ package keychain
 
 // The SecKeychain* / SecACL* family is deprecated without a replacement
 // (the data-protection keychain has no per-item ACL editing). Accepted for
-// this test-time-only path; see docs/design.md Appendix A.
+// this test-time-only path.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
