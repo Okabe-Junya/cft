@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Exit code conventions, per docs/design.md §12. Subcommands signal a code
+// Exit code conventions. Subcommands signal a code
 // other than 1 by returning an error that satisfies exitCoder.
 const (
 	ExitOK      = 0
@@ -46,7 +46,7 @@ func newRootCmd(version string) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "cft",
 		Short:         "Cloudflare API token manager backed by the macOS Keychain",
-		Long:          "cft applies YAML specs for Cloudflare API tokens and stores the issued values in the macOS Keychain, not on disk. See docs/design.md.",
+		Long:          "cft applies YAML specs for Cloudflare API tokens and stores the issued values in the macOS Keychain, not on disk.",
 		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -54,7 +54,7 @@ func newRootCmd(version string) *cobra.Command {
 	var keychainPath string
 	var allowAnyApp bool
 	root.PersistentFlags().StringVar(&keychainPath, "keychain", "",
-		"path to a keychain file to use instead of the login keychain (docs/design.md §6.1)")
+		"path to a keychain file to use instead of the login keychain")
 	// --profile is a persistent flag so every subcommand can select which
 	// account (profile) to act on. Empty means "fall back to $CFT_PROFILE,
 	// then the current pointer, then the default profile".

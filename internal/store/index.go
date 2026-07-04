@@ -1,6 +1,6 @@
 // Package store persists the local profile/name → cloudflare-id map at
 // $XDG_CONFIG_HOME/cftoken/index.json (or ~/Library/Application Support on
-// macOS). See docs/design.md §6.2.
+// macOS).
 //
 // The file never contains token values; values live in the Keychain.
 //

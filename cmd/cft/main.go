@@ -1,5 +1,5 @@
 // Command cft manages least-privilege Cloudflare API tokens with the macOS
-// Keychain as the secret store. See docs/design.md.
+// Keychain as the secret store.
 package main
 
 import (

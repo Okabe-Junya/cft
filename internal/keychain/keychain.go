@@ -1,5 +1,4 @@
 // Package keychain stores Cloudflare API token values in the macOS Keychain.
-// See docs/design.md §6.1.
 //
 // Token values never appear on disk; only their (name → cloudflare-id) mapping
 // does, in internal/store. Per the design, two service strings are reserved:
