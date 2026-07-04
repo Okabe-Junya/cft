@@ -1,0 +1,56 @@
+# Release notes are drafted automatically from merged PRs. The next version is
+# resolved from the release/* label on each PR; the autolabeler applies those
+# labels from the branch type (see below), so labelling is hands-off.
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+
+version-resolver:
+  major:
+    labels: ["release/major"]
+  minor:
+    labels: ["release/minor"]
+  patch:
+    labels: ["release/patch"]
+  default: patch
+
+categories:
+  - title: "🚀 Features"
+    labels: ["enhancement"]
+  - title: "🐛 Fixes"
+    labels: ["bug"]
+  - title: "📝 Documentation"
+    labels: ["documentation"]
+  - title: "⬆️ Dependencies"
+    labels: ["dependencies"]
+  - title: "🧰 Maintenance"
+    labels: ["chore"]
+
+change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
+change-title-escapes: '\<*_&' # avoid @mentions and markdown injection from titles
+
+# Map a PR to its category + release/* label from the branch type in
+# `Okabe-Junya/{type}/...` (PR titles here are imperative, not type-prefixed).
+# A `!:` title or a BREAKING CHANGE body wins as major.
+autolabeler:
+  - label: "release/major"
+    title: ['/^\w+(\(.+\))?!:/']
+    body: ["/BREAKING CHANGE/"]
+  - label: "release/minor"
+    branch: ['/\/feature\//']
+  - label: "release/patch"
+    branch: ['/\/(fix|docs|refactor|perf|test|chore)\//', "/^dependabot\\//"]
+  - label: "enhancement"
+    branch: ['/\/feature\//']
+  - label: "bug"
+    branch: ['/\/fix\//']
+  - label: "documentation"
+    branch: ['/\/docs\//']
+  - label: "chore"
+    branch: ['/\/(refactor|perf|test|chore)\//']
+
+template: |
+  ## What's Changed
+
+  $CHANGES
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
