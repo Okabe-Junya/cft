@@ -30,7 +30,7 @@ make build
 
 ```sh
 cft login                                  # store bootstrap token in Keychain
-cft apply ./tokens/dns-editor.yaml         # idempotent create / policy update
+cft apply ./tokens/dns-editor.cft.yaml     # idempotent create / policy update
 cft list                                   # name / id / expires
 cft rotate dns-editor-example-com          # re-issue token value
 cft exec  dns-editor-example-com -- terraform plan
@@ -38,7 +38,7 @@ cft delete dns-editor-example-com
 ```
 
 ```yaml
-# ./tokens/dns-editor.yaml
+# ./tokens/dns-editor.cft.yaml
 name: dns-editor-example-com
 policies:
   - permissions:
@@ -95,6 +95,8 @@ as before.
 
 [schema/cft-token.schema.json](./schema/cft-token.schema.json) is a JSON Schema for token spec files. Any editor running [yaml-language-server](https://github.com/redhat-developer/yaml-language-server) (VS Code via the YAML extension, Neovim via yamlls, …) can use it for completion, hover docs, and inline validation — including the "exactly one of `zone` / `account` / `user`" rule.
 
+Name token spec files `<name>.cft.yaml` (e.g. `tokens/dns-editor.cft.yaml`). The suffix is a convention for editor tooling and [SchemaStore](https://www.schemastore.org/json/) matching, not a loader requirement — `cft apply` accepts any `.yaml`/`.yml` file regardless of name.
+
 `cft schema` prints the schema embedded in the binary, so any checkout-independent location works:
 
 ```sh
@@ -114,10 +116,12 @@ or per directory in VS Code (`.vscode/settings.json`, paths relative to the work
 ```json
 {
   "yaml.schemas": {
-    "./schema/cft-token.schema.json": "tokens/**/*.{yaml,yml}"
+    "./schema/cft-token.schema.json": "tokens/**/*.cft.yaml"
   }
 }
 ```
+
+Once [schema/cft-token.schema.json](./schema/cft-token.schema.json) is registered on [SchemaStore](https://www.schemastore.org/json/), any `*.cft.yaml` file gets completion and validation automatically in a clean editor install — no `yaml.schemas` or modeline needed.
 
 The schema mirrors what `cft apply` enforces (`internal/spec`); `TestSchema_MatchesGoValidation` keeps the two from drifting. Cross-file rules (unique names) and existence checks against the Cloudflare API are still apply-time only.
 
