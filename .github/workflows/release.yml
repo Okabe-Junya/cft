@@ -29,7 +29,7 @@ jobs:
       # Check out the published tag (not the release's target branch) so Go's
       # VCS stamping resolves the version; fetch-depth: 0 gives goreleaser the
       # full history for the changelog.
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.release.tag_name }}
           fetch-depth: 0
