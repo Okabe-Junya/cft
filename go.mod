@@ -1,6 +1,6 @@
 module github.com/Okabe-Junya/cft
 
-go 1.26.4
+go 1.26.5
 
 require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4
