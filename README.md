@@ -30,7 +30,7 @@ make build
 
 ```sh
 cft login                                  # store bootstrap token in Keychain
-cft apply ./tokens/dns-editor.cft.yaml     # idempotent create / policy update
+cft apply ./tokens/dns-editor.cft.yaml     # idempotent create / policy update / adopt existing
 cft list                                   # name / id / expires
 cft rotate dns-editor-example-com          # re-issue token value
 cft exec  dns-editor-example-com -- terraform plan

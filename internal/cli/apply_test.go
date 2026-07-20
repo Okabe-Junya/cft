@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,12 +25,19 @@ type fakeClient struct {
 	createResp map[string]*cfapi.CreatedToken
 	updateResp map[string]*cfapi.Token
 
+	// tokensByName is the remote token list keyed by exact name, consulted
+	// for spec names missing from the local index (adopt lookup).
+	tokensByName map[string][]cfapi.Token
+	// resolveErr forces ResolveTokensByName to fail for a matching name.
+	resolveErr map[string]error
+
 	// createErr forces CreateToken to return the given error for matching
 	// spec.Name values without recording a successful response.
 	createErr map[string]error
 
-	createCalls []cfapi.TokenSpec
-	updateCalls []struct {
+	resolveCalls []string
+	createCalls  []cfapi.TokenSpec
+	updateCalls  []struct {
 		ID   string
 		Spec cfapi.TokenSpec
 	}
@@ -44,6 +52,13 @@ func (f *fakeClient) ResolveZoneID(_ context.Context, name string) (string, erro
 		return "", errors.New("zone not found: " + name)
 	}
 	return id, nil
+}
+func (f *fakeClient) ResolveTokensByName(_ context.Context, name string) ([]cfapi.Token, error) {
+	f.resolveCalls = append(f.resolveCalls, name)
+	if e, ok := f.resolveErr[name]; ok {
+		return nil, e
+	}
+	return f.tokensByName[name], nil
 }
 func (f *fakeClient) CreateToken(_ context.Context, s cfapi.TokenSpec) (*cfapi.CreatedToken, error) {
 	f.createCalls = append(f.createCalls, s)
@@ -508,5 +523,258 @@ policies:
 	var ec exitCoder
 	if !errors.As(err, &ec) || ec.ExitCode() != ExitSpec {
 		t.Errorf("err = %v, want ExitSpec", err)
+	}
+}
+
+// adoptDeps builds an applyDeps wired to client for the adopt tests, capturing
+// stderr warnings into *warnings.
+func adoptDeps(indexFile string, ks keychain.Store, client cfClient, warnings *[]string) applyDeps {
+	return applyDeps{
+		keychain:  ks,
+		indexPath: func() (string, error) { return indexFile, nil },
+		specs:     spec.Load,
+		withLock:  store.WithLock,
+		newClient: func(string) cfClient { return client },
+		stderrWarner: func(format string, a ...any) {
+			*warnings = append(*warnings, fmt.Sprintf(format, a...))
+		},
+	}
+}
+
+func TestApply_AdoptExistingToken_WhenIndexMissing(t *testing.T) {
+	dir := t.TempDir()
+	specPath := writeSpec(t, dir, "t.yaml",
+		`name: known
+policies:
+  - permissions: [X]
+    zone: e.com
+`)
+	ks := keychain.NewFake()
+	_ = ks.Set(keychain.ServiceBootstrap, keychain.BootstrapAccount, []byte("bs"))
+
+	client := &fakeClient{
+		permissionGroups: []cfapi.PermissionGroup{{ID: "p", Name: "X"}},
+		zones:            map[string]string{"e.com": "z"},
+		tokensByName:     map[string][]cfapi.Token{"known": {{ID: "remote-id", Name: "known"}}},
+	}
+
+	indexFile := filepath.Join(dir, "index.json")
+	var warnings []string
+	deps := adoptDeps(indexFile, ks, client, &warnings)
+
+	cmd := newApplyCmd(deps)
+	cmd.SetArgs([]string{specPath})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetContext(context.Background())
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+
+	// Adopt updates the existing token in place; it never creates.
+	if len(client.createCalls) != 0 {
+		t.Errorf("create calls = %d, want 0", len(client.createCalls))
+	}
+	if len(client.updateCalls) != 1 || client.updateCalls[0].ID != "remote-id" {
+		t.Errorf("update calls = %+v, want one PUT to remote-id", client.updateCalls)
+	}
+
+	// The index must record the adopted ID.
+	idx, err := store.Load(indexFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, ok := idx.Profile(store.DefaultProfile).Get("known")
+	if !ok || e.ID != "remote-id" {
+		t.Errorf("index entry = %+v ok=%v, want id remote-id", e, ok)
+	}
+
+	// No value must be written to the Keychain for an adopted token.
+	if _, kerr := ks.Get(keychain.ServiceTokens, "known"); !errors.Is(kerr, keychain.ErrNotFound) {
+		t.Errorf("adopt wrote a Keychain value: err=%v", kerr)
+	}
+
+	// The user must be warned to rotate before exec.
+	if len(warnings) == 0 || !strings.Contains(warnings[0], "cft rotate") {
+		t.Errorf("warnings = %v, want a rotate warning", warnings)
+	}
+
+	if !strings.Contains(out.String(), "adopt") {
+		t.Errorf("plan missing 'adopt': %q", out.String())
+	}
+}
+
+func TestApply_NoRemoteMatch_Creates(t *testing.T) {
+	dir := t.TempDir()
+	specPath := writeSpec(t, dir, "t.yaml",
+		`name: fresh
+policies:
+  - permissions: [X]
+    zone: e.com
+`)
+	ks := keychain.NewFake()
+	_ = ks.Set(keychain.ServiceBootstrap, keychain.BootstrapAccount, []byte("bs"))
+
+	client := &fakeClient{
+		permissionGroups: []cfapi.PermissionGroup{{ID: "p", Name: "X"}},
+		zones:            map[string]string{"e.com": "z"},
+		// tokensByName intentionally empty: 0 remote matches.
+	}
+	indexFile := filepath.Join(dir, "index.json")
+	var warnings []string
+	deps := adoptDeps(indexFile, ks, client, &warnings)
+
+	cmd := newApplyCmd(deps)
+	cmd.SetArgs([]string{specPath})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetContext(context.Background())
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+
+	if len(client.resolveCalls) != 1 || client.resolveCalls[0] != "fresh" {
+		t.Errorf("resolve calls = %v, want [fresh]", client.resolveCalls)
+	}
+	if len(client.createCalls) != 1 {
+		t.Errorf("create calls = %d, want 1", len(client.createCalls))
+	}
+	if len(client.updateCalls) != 0 {
+		t.Errorf("update calls = %d, want 0", len(client.updateCalls))
+	}
+	if len(warnings) != 0 {
+		t.Errorf("unexpected warnings on create: %v", warnings)
+	}
+}
+
+func TestApply_MultipleRemoteMatches_Fails(t *testing.T) {
+	dir := t.TempDir()
+	specPath := writeSpec(t, dir, "t.yaml",
+		`name: dupe
+policies:
+  - permissions: [X]
+    zone: e.com
+`)
+	ks := keychain.NewFake()
+	_ = ks.Set(keychain.ServiceBootstrap, keychain.BootstrapAccount, []byte("bs"))
+
+	client := &fakeClient{
+		permissionGroups: []cfapi.PermissionGroup{{ID: "p", Name: "X"}},
+		zones:            map[string]string{"e.com": "z"},
+		tokensByName: map[string][]cfapi.Token{"dupe": {
+			{ID: "id-a", Name: "dupe"},
+			{ID: "id-b", Name: "dupe"},
+		}},
+	}
+	indexFile := filepath.Join(dir, "index.json")
+	var warnings []string
+	deps := adoptDeps(indexFile, ks, client, &warnings)
+
+	cmd := newApplyCmd(deps)
+	cmd.SetArgs([]string{specPath})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetContext(context.Background())
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected ambiguous-match error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "ambiguous") || !strings.Contains(msg, "id-a") || !strings.Contains(msg, "id-b") {
+		t.Errorf("err = %v, want ambiguous error listing id-a and id-b", err)
+	}
+	// No mutation must have happened.
+	if len(client.createCalls) != 0 || len(client.updateCalls) != 0 {
+		t.Errorf("ambiguous match hit the API: create=%d update=%d", len(client.createCalls), len(client.updateCalls))
+	}
+}
+
+func TestApply_IndexHit_DoesNotConsultRemote(t *testing.T) {
+	dir := t.TempDir()
+	specPath := writeSpec(t, dir, "t.yaml",
+		`name: known
+policies:
+  - permissions: [X]
+    zone: e.com
+`)
+	indexFile := filepath.Join(dir, "index.json")
+	if err := store.WithLock(indexFile, func(i *store.Index) error {
+		i.Profile(store.DefaultProfile).Set("known", store.Entry{ID: "indexed-id"})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	ks := keychain.NewFake()
+	_ = ks.Set(keychain.ServiceBootstrap, keychain.BootstrapAccount, []byte("bs"))
+
+	client := &fakeClient{
+		permissionGroups: []cfapi.PermissionGroup{{ID: "p", Name: "X"}},
+		zones:            map[string]string{"e.com": "z"},
+		// A remote match exists, but an intact index must ignore it.
+		tokensByName: map[string][]cfapi.Token{"known": {{ID: "remote-id", Name: "known"}}},
+	}
+	var warnings []string
+	deps := adoptDeps(indexFile, ks, client, &warnings)
+
+	cmd := newApplyCmd(deps)
+	cmd.SetArgs([]string{specPath})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetContext(context.Background())
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+
+	if len(client.resolveCalls) != 0 {
+		t.Errorf("index hit consulted remote: %v", client.resolveCalls)
+	}
+	if len(client.updateCalls) != 1 || client.updateCalls[0].ID != "indexed-id" {
+		t.Errorf("update calls = %+v, want PUT to indexed-id", client.updateCalls)
+	}
+}
+
+func TestApply_DryRun_ShowsAdopt_NoMutation(t *testing.T) {
+	dir := t.TempDir()
+	specPath := writeSpec(t, dir, "t.yaml",
+		`name: known
+policies:
+  - permissions: [X]
+    zone: e.com
+`)
+	ks := keychain.NewFake()
+	_ = ks.Set(keychain.ServiceBootstrap, keychain.BootstrapAccount, []byte("bs"))
+
+	client := &fakeClient{
+		permissionGroups: []cfapi.PermissionGroup{{ID: "p", Name: "X"}},
+		zones:            map[string]string{"e.com": "z"},
+		tokensByName:     map[string][]cfapi.Token{"known": {{ID: "remote-id", Name: "known"}}},
+	}
+	indexFile := filepath.Join(dir, "index.json")
+	var warnings []string
+	deps := adoptDeps(indexFile, ks, client, &warnings)
+
+	cmd := newApplyCmd(deps)
+	cmd.SetArgs([]string{"--dry-run", specPath})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetContext(context.Background())
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("dry-run apply: %v", err)
+	}
+
+	if !strings.Contains(out.String(), "adopt") || !strings.Contains(out.String(), "remote-id") {
+		t.Errorf("dry-run plan missing adopt/remote-id: %q", out.String())
+	}
+	if len(client.createCalls) != 0 || len(client.updateCalls) != 0 {
+		t.Errorf("dry-run hit API: create=%d update=%d", len(client.createCalls), len(client.updateCalls))
+	}
+	if _, err := store.Load(indexFile); err != nil {
+		t.Fatal(err)
 	}
 }

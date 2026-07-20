@@ -137,6 +137,26 @@ func (c *Client) ListTokens(ctx context.Context) ([]Token, error) {
 	return out, nil
 }
 
+// ResolveTokensByName returns every token whose name exactly matches name.
+// The /user/tokens endpoint has no server-side name filter, so this lists all
+// tokens and post-filters for exact equality — mirroring ResolveZoneID's
+// "don't trust the API filter" stance. Apply uses it to decide whether a
+// spec'd name absent from the local index should be created (0 matches) or
+// adopted (1 match); more than one match is ambiguous and left to the caller.
+func (c *Client) ResolveTokensByName(ctx context.Context, name string) ([]Token, error) {
+	all, err := c.ListTokens(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var matches []Token
+	for _, t := range all {
+		if t.Name == name {
+			matches = append(matches, t)
+		}
+	}
+	return matches, nil
+}
+
 // GetToken fetches a single token by ID.
 func (c *Client) GetToken(ctx context.Context, id string) (*Token, error) {
 	resp, err := c.cf.User.Tokens.Get(ctx, id)
