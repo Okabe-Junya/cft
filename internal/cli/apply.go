@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/Okabe-Junya/cft/internal/cfapi"
@@ -20,6 +21,7 @@ import (
 type cfClient interface {
 	ListPermissionGroups(ctx context.Context) ([]cfapi.PermissionGroup, error)
 	ResolveZoneID(ctx context.Context, name string) (string, error)
+	ResolveTokensByName(ctx context.Context, name string) ([]cfapi.Token, error)
 	CreateToken(ctx context.Context, s cfapi.TokenSpec) (*cfapi.CreatedToken, error)
 	UpdateToken(ctx context.Context, id string, s cfapi.TokenSpec) (*cfapi.Token, error)
 }
@@ -50,7 +52,9 @@ func newApplyCmd(deps applyDeps) *cobra.Command {
 		Use:   "apply <file|dir> [<file|dir>...]",
 		Short: "Reconcile token specs with Cloudflare + Keychain + local index",
 		Long: "Reads YAML token specs and ensures Cloudflare matches them: creates missing tokens (storing values in the Keychain), " +
-			"updates existing token policies in-place, and never alters token values (use `cft rotate` for that).",
+			"updates existing token policies in-place, and never alters token values (use `cft rotate` for that). " +
+			"When a spec'd name is absent from the local index but already exists in Cloudflare, apply adopts that token " +
+			"(records its ID and updates the policy in place) instead of creating a duplicate; since its value is unknown locally, run `cft rotate <name>` before `cft exec`.",
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			tokens, err := deps.specs(args...)
@@ -112,7 +116,7 @@ func runApply(ctx context.Context, out io.Writer, tokens []spec.Token, deps appl
 	// successful entries when a later action fails.
 	lockErr := deps.withLock(indexPath, func(idx *store.Index) error {
 		p := idx.Profile(profile)
-		plan, err := buildPlan(tokens, p, r)
+		plan, err := buildPlan(ctx, tokens, p, r, client)
 		if err != nil {
 			return err
 		}
@@ -135,12 +139,18 @@ func runApply(ctx context.Context, out io.Writer, tokens []spec.Token, deps appl
 type action struct {
 	token   spec.Token
 	cf      cfapi.TokenSpec
-	op      string // "create" | "update"
-	id      string // populated when op=="update"
+	op      string // "create" | "update" | "adopt"
+	id      string // populated when op=="update" or op=="adopt"
 	expires string
 }
 
-func buildPlan(tokens []spec.Token, p *store.Profile, r resolver) ([]action, error) {
+// buildPlan decides create/update/adopt for each spec token. Names present in
+// the local index update in place. Names absent from the index are looked up
+// remotely by exact name: 0 matches create, exactly 1 adopts (records the
+// existing ID and updates its policy without touching the value), and >1 is an
+// ambiguous error the operator must resolve by hand. The remote lookup only
+// runs for index misses, so an intact index preserves the prior behavior.
+func buildPlan(ctx context.Context, tokens []spec.Token, p *store.Profile, r resolver, client cfClient) ([]action, error) {
 	out := make([]action, 0, len(tokens))
 	for _, t := range tokens {
 		cf, err := translateToken(t, r)
@@ -152,7 +162,23 @@ func buildPlan(tokens []spec.Token, p *store.Profile, r resolver) ([]action, err
 			a.op = "update"
 			a.id = e.ID
 		} else {
-			a.op = "create"
+			matches, err := client.ResolveTokensByName(ctx, t.Name)
+			if err != nil {
+				return nil, fmt.Errorf("look up existing token %q: %w", t.Name, err)
+			}
+			switch len(matches) {
+			case 0:
+				a.op = "create"
+			case 1:
+				a.op = "adopt"
+				a.id = matches[0].ID
+			default:
+				ids := make([]string, len(matches))
+				for i, m := range matches {
+					ids[i] = m.ID
+				}
+				return nil, fmt.Errorf("token %q is ambiguous: %d existing Cloudflare tokens share this name (IDs: %s); delete the duplicates so exactly one remains, then re-run apply", t.Name, len(matches), strings.Join(ids, ", "))
+			}
 		}
 		out = append(out, a)
 	}
@@ -220,6 +246,16 @@ func applyOne(ctx context.Context, a action, p *store.Profile, client cfClient, 
 			deps.stderrWarner("token %q value missing from Keychain; run `cft rotate %s` to re-issue", a.token.Name, a.token.Name)
 		}
 		p.Set(a.token.Name, store.Entry{ID: a.id, Expires: a.expires})
+	case "adopt":
+		// Adopt an existing same-name token the index lost track of: update
+		// its policy in place and record the ID, but never write a value to
+		// the Keychain — the live value is unknown, so cft exec needs a
+		// `cft rotate` first to mint one it can read.
+		if _, err := client.UpdateToken(ctx, a.id, a.cf); err != nil {
+			return fmt.Errorf("adopt token %q: %w", a.token.Name, err)
+		}
+		p.Set(a.token.Name, store.Entry{ID: a.id, Expires: a.expires})
+		deps.stderrWarner("adopted existing token %q (id %s); its value is not stored locally, run `cft rotate %s` before `cft exec`", a.token.Name, a.id, a.token.Name)
 	}
 	return nil
 }

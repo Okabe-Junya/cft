@@ -493,6 +493,56 @@ func TestListTokens_DrainsPages(t *testing.T) {
 	}
 }
 
+// TestResolveTokensByName_PostFiltersToExactName confirms the adopt lookup
+// keeps only exact-name matches (the endpoint has no server-side name filter)
+// and returns every match so the caller can disambiguate.
+func TestResolveTokensByName_PostFiltersToExactName(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch pageFromQuery(r) {
+		case 1:
+			writePagedEnvelope(t, w, []map[string]string{
+				{"id": "t-near", "name": "dns-editor-2", "status": "active"},
+				{"id": "t-a", "name": "dns-editor", "status": "active"},
+				{"id": "t-b", "name": "dns-editor", "status": "active"},
+			}, 1, 50)
+		default:
+			writePagedEnvelope(t, w, []map[string]string{}, 2, 50)
+		}
+	})
+	got, err := c.ResolveTokensByName(context.Background(), "dns-editor")
+	if err != nil {
+		t.Fatalf("ResolveTokensByName: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d matches, want 2 (%+v)", len(got), got)
+	}
+	for _, tok := range got {
+		if tok.Name != "dns-editor" {
+			t.Errorf("match has name %q, want dns-editor", tok.Name)
+		}
+	}
+}
+
+func TestResolveTokensByName_NoMatch(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch pageFromQuery(r) {
+		case 1:
+			writePagedEnvelope(t, w, []map[string]string{
+				{"id": "t-other", "name": "other", "status": "active"},
+			}, 1, 50)
+		default:
+			writePagedEnvelope(t, w, []map[string]string{}, 2, 50)
+		}
+	})
+	got, err := c.ResolveTokensByName(context.Background(), "absent")
+	if err != nil {
+		t.Fatalf("ResolveTokensByName: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("got %d matches, want 0", len(got))
+	}
+}
+
 func TestError_Format(t *testing.T) {
 	e := &Error{Status: 400, Codes: []int{1, 2}, Messages: []string{"a", "b"}}
 	s := e.Error()
