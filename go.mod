@@ -4,7 +4,7 @@ go 1.26.5
 
 require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4
-	github.com/cloudflare/cloudflare-go/v7 v7.7.0
+	github.com/cloudflare/cloudflare-go/v7 v7.8.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/spf13/cobra v1.10.2
