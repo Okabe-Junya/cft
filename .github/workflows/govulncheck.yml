@@ -20,6 +20,13 @@ jobs:
   govulncheck:
     name: govulncheck
     runs-on: ubuntu-latest
+    # govulncheck's call-graph analysis can pathologically stall against large
+    # dependency graphs (observed: minutes of 100%+ CPU with zero output) when
+    # the (unpinned) vulnerability DB or toolchain shifts. Without a bound, the
+    # job either sits until GitHub's runner-communication watchdog kills it
+    # after ~46 min, or gets cancelled a couple of minutes in with no useful
+    # signal. Fail fast and unambiguously instead.
+    timeout-minutes: 5
     steps:
       # The action checks out the repository itself (repo-checkout: true).
       - uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # v1.1.0
