@@ -80,11 +80,12 @@ homebrew_casks:
     homepage: https://github.com/Okabe-Junya/cft
     description: macOS-only CLI for managing least-privilege Cloudflare API tokens declaratively.
     commit_msg_template: "chore(formula): update cft to {{ .Tag }}"
-    # The binaries carry only Go's ad-hoc signature (no Developer ID /
-    # notarization yet), so strip the Gatekeeper quarantine flag on install.
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/cft"]
-          end
+    # The binaries are only ad-hoc signed, so Gatekeeper SIGKILLs them while
+    # quarantined. Uses custom_block because `hooks.post.install` still emits
+    # Homebrew's deprecated `postflight`; switch to `hooks.post.install_steps`
+    # once goreleaser ships it (goreleaser/goreleaser#6873). The inner quoting
+    # protects Homebrew's `{{staged_path}}` from goreleaser's template pass.
+    custom_block: |
+      postflight_steps do
+        run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{staged_path}}" }}/cft"]
+      end
