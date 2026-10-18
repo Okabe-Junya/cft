@@ -6,7 +6,7 @@ PKG         := ./...
 LDFLAGS     := -s -w
 # Keep this pin in sync with the `version:` input of golangci-lint-action
 # in .github/workflows/lint.yml.
-GOLANGCI_LINT := go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+GOLANGCI_LINT := go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
 
 .PHONY: all build test integration lint check tidy clean
 
