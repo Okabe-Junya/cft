@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -136,26 +137,42 @@ func newProfileAddCmd(deps profileDeps) *cobra.Command {
 }
 
 func newProfileListCmd(deps profileDeps) *cobra.Command {
-	return &cobra.Command{
+	var asJSON bool
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List profiles (current, bootstrap presence, token count)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if asJSON {
+				return runProfileListJSON(cmd, deps)
+			}
 			return runProfileList(cmd, deps)
 		},
 	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "emit machine-readable JSON instead of the table")
+	return cmd
 }
 
-func runProfileList(cmd *cobra.Command, deps profileDeps) error {
+// profileRow is one entry of the profile listing, shared by the table and JSON
+// renderers and used directly as the `profile list --json` element schema.
+type profileRow struct {
+	Name      string `json:"name"`
+	Current   bool   `json:"current"`
+	Bootstrap bool   `json:"bootstrap"`
+	Tokens    int    `json:"tokens"`
+}
+
+// gatherProfiles collects every known profile. A profile is "known" if it has
+// a bootstrap token in the Keychain or an entry in the index (it may have one
+// without the other mid-setup). Rows are sorted by name.
+func gatherProfiles(deps profileDeps) ([]profileRow, error) {
 	idx, err := deps.load()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	// A profile is "known" if it has a bootstrap token in the Keychain or an
-	// entry in the index (it may have one without the other mid-setup).
 	bootstraps, err := deps.keychain.List(keychain.ServiceBootstrap)
 	if err != nil {
-		return fmt.Errorf("list keychain bootstraps: %w", err)
+		return nil, fmt.Errorf("list keychain bootstraps: %w", err)
 	}
 	hasBootstrap := map[string]bool{}
 	set := map[string]struct{}{}
@@ -172,25 +189,59 @@ func runProfileList(cmd *cobra.Command, deps profileDeps) error {
 	}
 	sort.Strings(names)
 
-	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-	defer tw.Flush()
-	fmt.Fprintln(tw, "CURRENT\tPROFILE\tBOOTSTRAP\tTOKENS")
+	rows := make([]profileRow, 0, len(names))
 	for _, n := range names {
-		marker := ""
-		if n == idx.Current {
-			marker = "*"
-		}
-		boot := "no"
-		if hasBootstrap[n] {
-			boot = "yes"
-		}
 		count := 0
 		if idx.HasProfile(n) {
 			count = len(idx.Profile(n).All())
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\n", marker, n, boot, count)
+		rows = append(rows, profileRow{
+			Name:      n,
+			Current:   n == idx.Current,
+			Bootstrap: hasBootstrap[n],
+			Tokens:    count,
+		})
+	}
+	return rows, nil
+}
+
+func runProfileList(cmd *cobra.Command, deps profileDeps) error {
+	rows, err := gatherProfiles(deps)
+	if err != nil {
+		return err
+	}
+	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+	defer tw.Flush()
+	fmt.Fprintln(tw, "CURRENT\tPROFILE\tBOOTSTRAP\tTOKENS")
+	for _, r := range rows {
+		marker := ""
+		if r.Current {
+			marker = "*"
+		}
+		boot := "no"
+		if r.Bootstrap {
+			boot = "yes"
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\n", marker, r.Name, boot, r.Tokens)
 	}
 	return nil
+}
+
+func runProfileListJSON(cmd *cobra.Command, deps profileDeps) error {
+	rows, err := gatherProfiles(deps)
+	if err != nil {
+		return err
+	}
+	// Non-nil slice so an empty install serialises as [] not null.
+	out := struct {
+		Profiles []profileRow `json:"profiles"`
+	}{Profiles: rows}
+	b, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(cmd.OutOrStdout(), string(b))
+	return err
 }
 
 func newProfileUseCmd(deps profileDeps) *cobra.Command {
