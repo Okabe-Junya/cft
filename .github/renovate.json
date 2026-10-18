@@ -95,8 +95,8 @@
     "customManagers": [
         {
             "customType": "regex",
-            "fileMatch": [
-                ".*y[a]?ml$"
+            "managerFilePatterns": [
+                "/.*y[a]?ml$/"
             ],
             "matchStrings": [
                 "go install (?<depName>[^@]+?)@(?<currentValue>.+)\n"
@@ -105,8 +105,8 @@
         },
         {
             "customType": "regex",
-            "fileMatch": [
-                ".*y[a]?ml$"
+            "managerFilePatterns": [
+                "/.*y[a]?ml$/"
             ],
             "matchStrings": [
                 "golangci-lint-action@[^\n]+\n\\s+with:\n\\s+version:\\s*(?<currentValue>v[0-9.]+)"
