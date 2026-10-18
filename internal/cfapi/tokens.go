@@ -101,12 +101,7 @@ func (c *Client) UpdateToken(ctx context.Context, id string, s TokenSpec) (*Toke
 
 // RollToken re-issues the token value and returns the new value.
 func (c *Client) RollToken(ctx context.Context, id string) (string, error) {
-	// The Cloudflare endpoint takes no body; the SDK still requires the
-	// Body field on TokenValueUpdateParams, so an empty object is the
-	// canonical way to issue the call.
-	v, err := c.cf.User.Tokens.Value.Update(ctx, id, user.TokenValueUpdateParams{
-		Body: struct{}{},
-	})
+	v, err := c.cf.User.Tokens.Value.Update(ctx, id)
 	if err != nil {
 		return "", mapError(err)
 	}
