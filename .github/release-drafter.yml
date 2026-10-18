@@ -38,7 +38,12 @@ autolabeler:
   - label: "release/minor"
     branch: ['/\/feature\//']
   - label: "release/patch"
-    branch: ['/\/(fix|docs|refactor|perf|test|chore)\//', "/^dependabot\\//"]
+    branch:
+      [
+        '/\/(fix|docs|refactor|perf|test|chore)\//',
+        "/^dependabot\\//",
+        "/^renovate\\//",
+      ]
   - label: "enhancement"
     branch: ['/\/feature\//']
   - label: "bug"
@@ -47,6 +52,8 @@ autolabeler:
     branch: ['/\/docs\//']
   - label: "chore"
     branch: ['/\/(refactor|perf|test|chore)\//']
+  - label: "dependencies"
+    branch: ["/^renovate\\//"]
 
 template: |
   ## What's Changed
