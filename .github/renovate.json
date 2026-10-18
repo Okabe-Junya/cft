@@ -90,6 +90,16 @@
             "matchPackageNames": [
                 "/^golang.org/x//"
             ]
+        },
+        {
+            "description": "go.mod pins the ignore-deprecations branch commit (macOS Catalina build fix), but Renovate digest updates track the default branch HEAD, which is an older 2016 commit and would downgrade it",
+            "matchPackageNames": [
+                "github.com/99designs/go-keychain"
+            ],
+            "matchUpdateTypes": [
+                "digest"
+            ],
+            "enabled": false
         }
     ],
     "customManagers": [
