@@ -1,0 +1,124 @@
+{
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "timezone": "Asia/Tokyo",
+    "schedule": [
+        "after 1am and before 6am on monday"
+    ],
+    "automergeSchedule": [
+        "after 1am and before 6am on monday"
+    ],
+    "prHourlyLimit": 0,
+    "dependencyDashboard": true,
+    "autoApprove": true,
+    "updateNotScheduled": false,
+    "packageRules": [
+        {
+            "matchPackageNames": [
+                "*"
+            ],
+            "rangeStrategy": "replace"
+        },
+        {
+            "matchCategories": [
+                "golang"
+            ],
+            "commitMessageAction": "Bump",
+            "commitMessageExtra": "to {{newValue}}",
+            "commitMessageTopic": "module {{depName}}",
+            "postUpdateOptions": [
+                "gomodTidy",
+                "gomodUpdateImportPaths"
+            ]
+        },
+        {
+            "matchManagers": [
+                "github-actions"
+            ],
+            "semanticCommitScope": "ci"
+        },
+        {
+            "matchUpdateTypes": [
+                "pin"
+            ],
+            "addLabels": [
+                "renovate:pin"
+            ]
+        },
+        {
+            "matchUpdateTypes": [
+                "major"
+            ],
+            "addLabels": [
+                "renovate:major"
+            ],
+            "minimumReleaseAge": "7 days"
+        },
+        {
+            "matchUpdateTypes": [
+                "minor"
+            ],
+            "addLabels": [
+                "renovate:minor"
+            ],
+            "minimumReleaseAge": "5 days"
+        },
+        {
+            "matchUpdateTypes": [
+                "patch"
+            ],
+            "addLabels": [
+                "renovate:patch"
+            ],
+            "minimumReleaseAge": "3 days",
+            "automerge": true
+        },
+        {
+            "matchDepTypes": [
+                "action"
+            ],
+            "pinDigests": true
+        },
+        {
+            "groupName": "Go version",
+            "matchDatasources": [
+                "golang-version"
+            ]
+        },
+        {
+            "groupName": "golang.org/x/...",
+            "automerge": true,
+            "matchPackageNames": [
+                "/^golang.org/x//"
+            ]
+        }
+    ],
+    "customManagers": [
+        {
+            "customType": "regex",
+            "fileMatch": [
+                ".*y[a]?ml$"
+            ],
+            "matchStrings": [
+                "go install (?<depName>[^@]+?)@(?<currentValue>.+)\n"
+            ],
+            "datasourceTemplate": "go"
+        },
+        {
+            "customType": "regex",
+            "fileMatch": [
+                ".*y[a]?ml$"
+            ],
+            "matchStrings": [
+                "golangci-lint-action@[^\n]+\n\\s+with:\n\\s+version:\\s*(?<currentValue>v[0-9.]+)"
+            ],
+            "depNameTemplate": "golangci/golangci-lint",
+            "datasourceTemplate": "github-releases"
+        }
+    ],
+    "vulnerabilityAlerts": {
+        "enabled": true,
+        "labels": [
+            "renovate:security-update"
+        ]
+    }
+}
