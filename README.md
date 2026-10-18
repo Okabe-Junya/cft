@@ -65,6 +65,18 @@ cft completion fish > ~/.config/fish/completions/cft.fish                 # fish
 `cft rotate`, `exec`, and `delete` complete token names (scoped to the selected
 profile) and `cft profile use` completes profile names, read from the local index.
 
+## Machine-readable output
+
+`cft list` and `cft profile list` take `--json` for agents and pipelines; human
+output is unchanged. `cft list --json` adds a `status` field (`active` /
+`expiring_soon` / `expired`) so a colourless consumer gets the same expiry
+signal the table shows in colour:
+
+```sh
+cft list --json | jq '.tokens[] | select(.status != "active") | .name'
+cft profile list --json
+```
+
 ## Multiple accounts (profiles)
 
 A **profile** bundles one Cloudflare account's bootstrap token and its managed

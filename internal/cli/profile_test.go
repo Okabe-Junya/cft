@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -234,6 +235,52 @@ func TestProfileList_ShowsProfilesAndCurrentMarker(t *testing.T) {
 		if strings.Contains(line, "alumni") && strings.Contains(line, "*") {
 			t.Errorf("alumni row should not be marked current: %q", line)
 		}
+	}
+}
+
+func TestProfileList_JSON(t *testing.T) {
+	path, ks, deps := profileTestDeps(t, "")
+	_ = ks.Set(keychain.ServiceBootstrap, "gmail", []byte("bs"))
+	if err := store.WithLock(path, func(i *store.Index) error {
+		i.Current = "gmail"
+		i.Profile("gmail").Set("tok", store.Entry{ID: "1"})
+		i.Profile("alumni") // in index, no bootstrap yet
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cmd := newProfileListCmd(deps)
+	cmd.SetArgs([]string{"--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&bytes.Buffer{})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("list --json: %v", err)
+	}
+
+	var got struct {
+		Profiles []struct {
+			Name      string `json:"name"`
+			Current   bool   `json:"current"`
+			Bootstrap bool   `json:"bootstrap"`
+			Tokens    int    `json:"tokens"`
+		} `json:"profiles"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("output is not valid JSON: %v\n%s", err, out.String())
+	}
+	if len(got.Profiles) != 2 {
+		t.Fatalf("want 2 profiles, got %d: %s", len(got.Profiles), out.String())
+	}
+	// Sorted by name: alumni then gmail.
+	if got.Profiles[0].Name != "alumni" || got.Profiles[1].Name != "gmail" {
+		t.Fatalf("profiles not sorted by name: %+v", got.Profiles)
+	}
+	if g := got.Profiles[1]; !g.Current || !g.Bootstrap || g.Tokens != 1 {
+		t.Errorf("gmail = %+v, want current=true bootstrap=true tokens=1", g)
+	}
+	if a := got.Profiles[0]; a.Current || a.Bootstrap || a.Tokens != 0 {
+		t.Errorf("alumni = %+v, want current=false bootstrap=false tokens=0", a)
 	}
 }
 

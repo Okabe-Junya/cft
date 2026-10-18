@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -56,6 +57,7 @@ func newListCmd(load indexLoader) *cobra.Command {
 
 func newListCmdWithDeps(deps listDeps) *cobra.Command {
 	var noColor bool
+	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List managed tokens (name, id, expires) from the local index",
@@ -66,11 +68,16 @@ func newListCmdWithDeps(deps listDeps) *cobra.Command {
 				return err
 			}
 			profile := selectedProfile(cmd, idx)
+			entries := idx.Profile(profile).All()
+			if asJSON {
+				return renderListJSON(cmd.OutOrStdout(), entries, deps.now())
+			}
 			useColor := shouldUseColor(noColor, deps)
-			return renderList(cmd.OutOrStdout(), idx.Profile(profile).All(), deps.now(), useColor)
+			return renderList(cmd.OutOrStdout(), entries, deps.now(), useColor)
 		},
 	}
 	cmd.Flags().BoolVar(&noColor, "no-color", false, "disable ANSI colour even on a TTY")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "emit machine-readable JSON instead of the table")
 	return cmd
 }
 
@@ -208,6 +215,65 @@ func renderList(w io.Writer, entries map[string]store.Entry, now time.Time, useC
 		}
 	}
 	return nil
+}
+
+// listToken is one row of `list --json`. Keys are always present (expires is
+// null rather than omitted) so an agent parses a stable schema every run.
+type listToken struct {
+	Name    string  `json:"name"`
+	ID      string  `json:"id"`
+	Expires *string `json:"expires"`
+	Status  string  `json:"status"`
+}
+
+type listJSON struct {
+	Tokens []listToken `json:"tokens"`
+}
+
+// statusFor maps the row's colour classification to a machine-readable string,
+// so the JSON view carries the same expiry signal the table encodes in colour.
+func statusFor(s rowStyle) string {
+	switch s {
+	case styleExpired:
+		return "expired"
+	case styleExpiringSoon:
+		return "expiring_soon"
+	default:
+		return "active"
+	}
+}
+
+// renderListJSON writes the entries as a JSON object sorted by name. The
+// tokens slice is non-nil so an empty index serialises as [] not null.
+func renderListJSON(w io.Writer, entries map[string]store.Entry, now time.Time) error {
+	names := make([]string, 0, len(entries))
+	for n := range entries {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+
+	out := listJSON{Tokens: make([]listToken, 0, len(names))}
+	for _, n := range names {
+		e := entries[n]
+		var expires *string
+		if e.Expires != "" {
+			v := e.Expires
+			expires = &v
+		}
+		out.Tokens = append(out.Tokens, listToken{
+			Name:    n,
+			ID:      e.ID,
+			Expires: expires,
+			Status:  statusFor(expiresStyle(e.Expires, now)),
+		})
+	}
+
+	b, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(w, string(b))
+	return err
 }
 
 func ansiFor(s rowStyle) (prefix, suffix string) {
