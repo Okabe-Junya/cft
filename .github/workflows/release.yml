@@ -7,10 +7,8 @@ on:
   release:
     types: [published]
 
-# Only the GitHub Release upload needs write access; formula publishing to the
-# tap uses the dedicated HOMEBREW_TAP_TOKEN secret, not GITHUB_TOKEN.
 permissions:
-  contents: write
+  contents: read
 
 # Never cancel a half-published release. Fixed group name (no ref) serialises
 # concurrent publishes instead of racing them.
@@ -25,6 +23,10 @@ jobs:
     # Security.framework. An arm64 runner cross-compiles darwin/amd64 fine.
     runs-on: macos-latest
     timeout-minutes: 30
+    # Only the GitHub Release upload needs write access; formula publishing to
+    # the tap uses the dedicated HOMEBREW_TAP_TOKEN secret, not GITHUB_TOKEN.
+    permissions:
+      contents: write
     steps:
       # Check out the published tag (not the release's target branch) so Go's
       # VCS stamping resolves the version; fetch-depth: 0 gives goreleaser the
