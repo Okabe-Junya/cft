@@ -73,6 +73,13 @@ linters:
           - gosec
           - tagliatelle
           - wrapcheck
+      # cloudflare-go v7.12.0 races in its shared JSON encoder cache when two
+      # clients first marshal a type concurrently (caught by -race), so the
+      # SDK-backed tests stay sequential. cft itself never calls it
+      # concurrently.
+      - path: internal/cfapi/client_test\.go
+        linters:
+          - paralleltest
 
 formatters:
   # Not enabled: gofmt (gofumpt is a stricter superset), gci (goimports
