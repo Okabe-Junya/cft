@@ -1,6 +1,7 @@
 package spec
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -12,7 +13,7 @@ var nameRe = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 // Validate checks t for semantic correctness.
 func (t Token) Validate() error {
 	if t.Name == "" {
-		return fmt.Errorf("name is required")
+		return errors.New("name is required")
 	}
 	if len(t.Name) > nameMaxLen {
 		return fmt.Errorf("name %q exceeds %d characters", t.Name, nameMaxLen)
@@ -21,7 +22,7 @@ func (t Token) Validate() error {
 		return fmt.Errorf("name %q must match DNS-1123 (lowercase alphanumeric or '-', starts/ends alphanumeric)", t.Name)
 	}
 	if len(t.Policies) == 0 {
-		return fmt.Errorf("at least one policy is required")
+		return errors.New("at least one policy is required")
 	}
 	for i, p := range t.Policies {
 		if err := p.validate(); err != nil {
@@ -38,7 +39,7 @@ func (t Token) Validate() error {
 
 func (p Policy) validate() error {
 	if len(p.Permissions) == 0 {
-		return fmt.Errorf("permissions must not be empty")
+		return errors.New("permissions must not be empty")
 	}
 	for i, perm := range p.Permissions {
 		if perm == "" {
@@ -57,7 +58,7 @@ func (p Policy) validate() error {
 	}
 	switch scopes {
 	case 0:
-		return fmt.Errorf("must specify exactly one of zone, account, user")
+		return errors.New("must specify exactly one of zone, account, user")
 	case 1:
 	default:
 		return fmt.Errorf("must specify exactly one of zone, account, user (got %d)", scopes)

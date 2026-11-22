@@ -23,7 +23,7 @@ func (f *fakeRotater) RollToken(_ context.Context, id string) (string, error) {
 	return f.value, f.err
 }
 
-func seedRotate(t *testing.T) (string, keychain.Store, *fakeRotater, rotateDeps) {
+func seedRotate(t *testing.T) (keychain.Store, *fakeRotater, rotateDeps) {
 	t.Helper()
 	dir := t.TempDir()
 	indexFile := filepath.Join(dir, "index.json")
@@ -43,11 +43,13 @@ func seedRotate(t *testing.T) (string, keychain.Store, *fakeRotater, rotateDeps)
 		newClient: func(string) rotater { return rot },
 		stdin:     strings.NewReader("y\n"),
 	}
-	return indexFile, ks, rot, deps
+	return ks, rot, deps
 }
 
 func TestRotate_HappyPath(t *testing.T) {
-	_, ks, rot, deps := seedRotate(t)
+	t.Parallel()
+
+	ks, rot, deps := seedRotate(t)
 	cmd := newRotateCmd(deps)
 	cmd.SetArgs([]string{"dns-editor"})
 	var out bytes.Buffer
@@ -67,7 +69,9 @@ func TestRotate_HappyPath(t *testing.T) {
 }
 
 func TestRotate_YesFlagSkipsPrompt(t *testing.T) {
-	_, _, rot, deps := seedRotate(t)
+	t.Parallel()
+
+	_, rot, deps := seedRotate(t)
 	deps.stdin = strings.NewReader("") // no input
 	cmd := newRotateCmd(deps)
 	cmd.SetArgs([]string{"-y", "dns-editor"})
@@ -83,7 +87,9 @@ func TestRotate_YesFlagSkipsPrompt(t *testing.T) {
 }
 
 func TestRotate_DeclineAborts(t *testing.T) {
-	_, ks, rot, deps := seedRotate(t)
+	t.Parallel()
+
+	ks, rot, deps := seedRotate(t)
 	deps.stdin = strings.NewReader("n\n")
 	cmd := newRotateCmd(deps)
 	cmd.SetArgs([]string{"dns-editor"})
@@ -107,7 +113,9 @@ func TestRotate_DeclineAborts(t *testing.T) {
 }
 
 func TestRotate_UnknownToken(t *testing.T) {
-	_, _, _, deps := seedRotate(t)
+	t.Parallel()
+
+	_, _, deps := seedRotate(t)
 	cmd := newRotateCmd(deps)
 	cmd.SetArgs([]string{"-y", "missing"})
 	cmd.SetOut(&bytes.Buffer{})
@@ -120,6 +128,8 @@ func TestRotate_UnknownToken(t *testing.T) {
 }
 
 func TestRotate_NoBootstrap_ExitsAuth(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	indexFile := filepath.Join(dir, "index.json")
 	if err := store.WithLock(indexFile, func(i *store.Index) error {

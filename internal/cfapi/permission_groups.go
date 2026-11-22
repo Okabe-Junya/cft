@@ -69,7 +69,8 @@ func PermissionGroupIndex(groups []PermissionGroup) (map[string]map[string]strin
 			idx[scope] = m
 		}
 		if existing, ok := m[g.Name]; ok && existing != g.ID {
-			return fmt.Errorf("cfapi: duplicate permission group name %q in scope %q (ids %s and %s)", g.Name, scope, existing, g.ID)
+			return fmt.Errorf("cfapi: duplicate permission group name %q in scope %q (ids %s and %s)",
+				g.Name, scope, existing, g.ID)
 		}
 		m[g.Name] = g.ID
 		return nil

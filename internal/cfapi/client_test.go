@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -24,17 +23,17 @@ func newTestClient(t *testing.T, h http.HandlerFunc) *Client {
 	return New("test-token", WithBaseURL(srv.URL), WithMaxRetries(0))
 }
 
-// writeEnvelope emits Cloudflare's standard JSON wrapper so the SDK's
+// writeEnvelope emits Cloudflare's standard JSON success wrapper so the SDK's
 // generic decoder accepts the response.
-func writeEnvelope(t *testing.T, w http.ResponseWriter, status int, result any) {
+func writeEnvelope(t *testing.T, w http.ResponseWriter, result any) {
 	t.Helper()
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
+	w.WriteHeader(http.StatusOK)
 	body := struct {
 		Success bool `json:"success"`
 		Result  any  `json:"result"`
 	}{
-		Success: status >= 200 && status < 300,
+		Success: true,
 		Result:  result,
 	}
 	if err := json.NewEncoder(w).Encode(body); err != nil {
@@ -49,7 +48,7 @@ func writeEnvelope(t *testing.T, w http.ResponseWriter, status int, result any) 
 func writePagedEnvelope(t *testing.T, w http.ResponseWriter, result any, page, perPage int) {
 	t.Helper()
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
+	w.WriteHeader(http.StatusOK)
 	body := struct {
 		Success    bool `json:"success"`
 		Result     any  `json:"result"`
@@ -91,7 +90,7 @@ func TestClient_BearerHeaderAndContentType(t *testing.T) {
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		seenAuth = r.Header.Get("Authorization")
 		seenContentType = r.Header.Get("Content-Type")
-		writeEnvelope(t, w, 200, map[string]any{
+		writeEnvelope(t, w, map[string]any{
 			"id":     "x",
 			"name":   "n",
 			"status": "active",
@@ -127,7 +126,7 @@ func TestNew_IgnoresEnvAuthAndBaseURL(t *testing.T) {
 	var seen http.Header
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		seen = r.Header.Clone()
-		writeEnvelope(t, w, 200, map[string]any{"id": "abc", "status": "active"})
+		writeEnvelope(t, w, map[string]any{"id": "abc", "status": "active"})
 	})
 	if _, err := c.Verify(context.Background()); err != nil {
 		t.Fatalf("Verify: %v", err)
@@ -144,10 +143,10 @@ func TestNew_IgnoresEnvAuthAndBaseURL(t *testing.T) {
 
 func TestVerify_Success(t *testing.T) {
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" || r.URL.Path != "/user/tokens/verify" {
+		if r.Method != http.MethodGet || r.URL.Path != "/user/tokens/verify" {
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
-		writeEnvelope(t, w, 200, map[string]any{
+		writeEnvelope(t, w, map[string]any{
 			"id":     "abc",
 			"status": "active",
 		})
@@ -175,14 +174,14 @@ func TestCreateToken_TranslatesPolicies(t *testing.T) {
 	}
 	var got body
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" || r.URL.Path != "/user/tokens" {
+		if r.Method != http.MethodPost || r.URL.Path != "/user/tokens" {
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
 		raw, _ := io.ReadAll(r.Body)
 		if err := json.Unmarshal(raw, &got); err != nil {
 			t.Fatalf("decode body: %v\n%s", err, raw)
 		}
-		writeEnvelope(t, w, 200, map[string]any{
+		writeEnvelope(t, w, map[string]any{
 			"id":     "id1",
 			"name":   "n",
 			"status": "active",
@@ -222,10 +221,10 @@ func TestCreateToken_TranslatesPolicies(t *testing.T) {
 
 func TestUpdateToken_PUT(t *testing.T) {
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "PUT" || r.URL.Path != "/user/tokens/the-id" {
+		if r.Method != http.MethodPut || r.URL.Path != "/user/tokens/the-id" {
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
-		writeEnvelope(t, w, 200, map[string]any{
+		writeEnvelope(t, w, map[string]any{
 			"id":     "the-id",
 			"name":   "n2",
 			"status": "active",
@@ -245,10 +244,10 @@ func TestUpdateToken_PUT(t *testing.T) {
 
 func TestRollToken_ReturnsString(t *testing.T) {
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "PUT" || r.URL.Path != "/user/tokens/abc/value" {
+		if r.Method != http.MethodPut || r.URL.Path != "/user/tokens/abc/value" {
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
-		writeEnvelope(t, w, 200, "new-secret-value")
+		writeEnvelope(t, w, "new-secret-value")
 	})
 	got, err := c.RollToken(context.Background(), "abc")
 	if err != nil {
@@ -262,7 +261,7 @@ func TestRollToken_ReturnsString(t *testing.T) {
 func TestDeleteToken_NotFound(t *testing.T) {
 	c := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(404)
+		w.WriteHeader(http.StatusNotFound)
 		_, _ = io.WriteString(w, `{"success":false,"errors":[{"code":1001,"message":"not found"}],"result":null}`)
 	})
 	err := c.DeleteToken(context.Background(), "missing")
@@ -283,7 +282,7 @@ func TestError_MessageFallback(t *testing.T) {
 		// Non-JSON body, e.g. an upstream gateway error. The SDK still
 		// surfaces this as *cloudflare.Error; our mapError fills Message
 		// with the SDK's stringified error so the user sees the status.
-		w.WriteHeader(502)
+		w.WriteHeader(http.StatusBadGateway)
 		_, _ = io.WriteString(w, "Bad Gateway")
 	})
 	_, err := c.Verify(context.Background())
@@ -309,7 +308,7 @@ func TestListPermissionGroups_ReturnsResults(t *testing.T) {
 		if r.URL.Path != "/user/tokens/permission_groups" {
 			t.Errorf("unexpected path %s", r.URL.Path)
 		}
-		writeEnvelope(t, w, 200, []map[string]any{
+		writeEnvelope(t, w, []map[string]any{
 			{"id": "id-a", "name": "DNS Write", "scopes": []string{ScopeZone}},
 			{"id": "id-b", "name": "Zone Read"},
 		})
@@ -569,5 +568,5 @@ func TestWithHTTPClient_FlowsThrough(t *testing.T) {
 type refusingTransport struct{}
 
 func (refusingTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
-	return nil, fmt.Errorf("refused")
+	return nil, errors.New("refused")
 }

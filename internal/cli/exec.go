@@ -24,9 +24,13 @@ type execer func(argv []string, env []string) error
 func defaultExecer(argv []string, env []string) error {
 	bin, err := exec.LookPath(argv[0])
 	if err != nil {
-		return err
+		return fmt.Errorf("find command: %w", err)
 	}
-	return syscall.Exec(bin, argv, env)
+	//nolint:gosec // G204: running the user's own command line is the purpose of `cft exec`.
+	if err := syscall.Exec(bin, argv, env); err != nil {
+		return fmt.Errorf("exec %s: %w", bin, err)
+	}
+	return nil
 }
 
 func newExecCmd(load indexLoader, ks keychain.Store, run execer) *cobra.Command {
@@ -69,7 +73,7 @@ func newExecCmd(load indexLoader, ks keychain.Store, run execer) *cobra.Command 
 // args list and the index of '--'. Returns a helpful error when args are
 // malformed. The dashIdx convention follows cobra: -1 means '--' was not
 // present.
-func splitExecArgs(args []string, dashIdx int) (name string, argv []string, err error) {
+func splitExecArgs(args []string, dashIdx int) (string, []string, error) {
 	if dashIdx < 0 {
 		return "", nil, errors.New("missing '--' separator; usage: cft exec <name> -- <command> [args...]")
 	}

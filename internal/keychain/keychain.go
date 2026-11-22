@@ -23,7 +23,7 @@ package keychain
 // would orphan previously-stored secrets).
 const (
 	ServiceBootstrap = "dev.cftoken.bootstrap"
-	ServiceTokens    = "dev.cftoken.tokens"
+	ServiceTokens    = "dev.cftoken.tokens" //nolint:gosec // G101: a Keychain service name, not a credential.
 
 	// BootstrapAccount is the account name under ServiceBootstrap for the
 	// default profile. With named profiles, a profile's bootstrap token is
@@ -45,13 +45,12 @@ func TokenAccount(profile, name string) string {
 	return profile + "/" + name
 }
 
-// ErrNotFound is returned by Get when the (service, account) entry does not
-// exist. Callers should use errors.Is to test for it.
 type notFoundError struct{ msg string }
 
 func (e *notFoundError) Error() string { return e.msg }
 
-// ErrNotFound signals a missing keychain entry.
+// ErrNotFound is returned by Get when the (service, account) entry does not
+// exist. Callers should use errors.Is to test for it.
 var ErrNotFound = &notFoundError{msg: "keychain: entry not found"}
 
 // Option configures New. Accepted on every platform; only the darwin

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -72,19 +71,17 @@ func newRotateCmd(deps rotateDeps) *cobra.Command {
 				}
 			}
 
-			bootstrap, err := deps.keychain.Get(keychain.ServiceBootstrap, profile)
+			bootstrap, err := loadBootstrap(deps.keychain, profile)
 			if err != nil {
-				if errors.Is(err, keychain.ErrNotFound) {
-					return withExit(ExitAuth, fmt.Errorf("bootstrap token not found for profile %q. Run: cft login --profile %s", profile, profile))
-				}
 				return err
 			}
-			client := deps.newClient(string(bootstrap))
+			client := deps.newClient(bootstrap)
 			newVal, err := client.RollToken(cmd.Context(), entry.ID)
 			if err != nil {
 				return fmt.Errorf("roll token: %w", err)
 			}
-			if err := deps.keychain.Set(keychain.ServiceTokens, keychain.TokenAccount(profile, name), []byte(newVal)); err != nil {
+			acct := keychain.TokenAccount(profile, name)
+			if err := deps.keychain.Set(keychain.ServiceTokens, acct, []byte(newVal)); err != nil {
 				return fmt.Errorf("write keychain: %w", err)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "rotated %q\n", name)

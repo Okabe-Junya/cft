@@ -8,6 +8,8 @@ import (
 )
 
 func TestParse_ValidMinimal(t *testing.T) {
+	t.Parallel()
+
 	src := `name: foo
 policies:
   - permissions: [DNS Write]
@@ -37,6 +39,8 @@ policies:
 }
 
 func TestParse_MultiDocument(t *testing.T) {
+	t.Parallel()
+
 	src := `name: a
 policies:
   - permissions: [X]
@@ -60,6 +64,8 @@ policies:
 }
 
 func TestParse_RejectsUnknownField(t *testing.T) {
+	t.Parallel()
+
 	src := `name: foo
 policies:
   - permissions: [X]
@@ -73,6 +79,8 @@ unknown_field: bar
 }
 
 func TestParse_RejectsMalformedYAML(t *testing.T) {
+	t.Parallel()
+
 	src := `name: foo
 policies:
   - permissions: [X
@@ -85,6 +93,8 @@ policies:
 }
 
 func TestParseFile_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	p := filepath.Join(dir, "t.yaml")
 	src := "name: foo\npolicies:\n  - permissions: [X]\n    zone: e.com\n"
@@ -101,6 +111,8 @@ func TestParseFile_RoundTrip(t *testing.T) {
 }
 
 func TestLoad_Directory(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	write := func(name, content string) {
 		t.Helper()
@@ -122,6 +134,8 @@ func TestLoad_Directory(t *testing.T) {
 }
 
 func TestLoad_FileArg(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	p := filepath.Join(dir, "t.yaml")
 	if err := os.WriteFile(p, []byte("name: foo\npolicies:\n  - permissions: [X]\n    zone: e.com\n"), 0o600); err != nil {
@@ -137,6 +151,8 @@ func TestLoad_FileArg(t *testing.T) {
 }
 
 func TestFormatError_NonNil(t *testing.T) {
+	t.Parallel()
+
 	_, err := Parse(strings.NewReader("name: foo\npolicies: not_a_list\n"))
 	if err == nil {
 		t.Fatal("expected error")
@@ -148,6 +164,8 @@ func TestFormatError_NonNil(t *testing.T) {
 }
 
 func TestFormatError_Nil(t *testing.T) {
+	t.Parallel()
+
 	if got := FormatError(nil, false); got != "" {
 		t.Errorf("FormatError(nil) = %q, want empty", got)
 	}

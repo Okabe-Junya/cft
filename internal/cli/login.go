@@ -16,7 +16,7 @@ import (
 )
 
 // EnvCloudflareToken is the environment variable read by `cft login --from-env`.
-const EnvCloudflareToken = "CLOUDFLARE_API_TOKEN"
+const EnvCloudflareToken = "CLOUDFLARE_API_TOKEN" //nolint:gosec // G101: an env var name, not a credential.
 
 // tokenVerifier is the seam used by login. Production calls cfapi; tests
 // inject a fake.

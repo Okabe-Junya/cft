@@ -3,6 +3,7 @@ package cfapi
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 )
 
@@ -41,10 +42,5 @@ func (e *Error) NotFound() bool { return e.Status == http.StatusNotFound }
 
 // HasCode reports whether any of the Cloudflare error codes match.
 func (e *Error) HasCode(code int) bool {
-	for _, c := range e.Codes {
-		if c == code {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(e.Codes, code)
 }

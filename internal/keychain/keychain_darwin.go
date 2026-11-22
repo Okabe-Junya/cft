@@ -4,6 +4,7 @@ package keychain
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 
 	kc "github.com/99designs/go-keychain"
@@ -28,12 +29,6 @@ func New(opts ...Option) Store {
 	return d
 }
 
-func (d Darwin) scope(item *kc.Item) {
-	if d.ref != nil {
-		item.SetMatchSearchList(*d.ref)
-	}
-}
-
 // Get reads (service, account) from the keychain. macOS may surface a
 // Touch ID / password prompt if the caller's code signature does not match
 // the ACL.
@@ -48,7 +43,7 @@ func (d Darwin) Get(service, account string) ([]byte, error) {
 
 	results, err := kc.QueryItem(q)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("keychain: get %s/%s: %w", service, account, err)
 	}
 	if len(results) == 0 {
 		return nil, ErrNotFound
@@ -83,7 +78,10 @@ func (d Darwin) Set(service, account string, data []byte) error {
 		update.SetData(data)
 		err = kc.UpdateItem(query, update)
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("keychain: set %s/%s: %w", service, account, err)
+	}
+	return nil
 }
 
 // Delete removes (service, account). Returns nil when the entry is absent.
@@ -98,7 +96,7 @@ func (d Darwin) Delete(service, account string) error {
 	if err == nil || errors.Is(err, kc.ErrorItemNotFound) {
 		return nil
 	}
-	return err
+	return fmt.Errorf("keychain: delete %s/%s: %w", service, account, err)
 }
 
 // List returns sorted account names under service.
@@ -112,7 +110,7 @@ func (d Darwin) List(service string) ([]string, error) {
 
 	results, err := kc.QueryItem(q)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("keychain: list %s: %w", service, err)
 	}
 	accs := make([]string, 0, len(results))
 	for _, r := range results {
@@ -120,4 +118,10 @@ func (d Darwin) List(service string) ([]string, error) {
 	}
 	sort.Strings(accs)
 	return accs, nil
+}
+
+func (d Darwin) scope(item *kc.Item) {
+	if d.ref != nil {
+		item.SetMatchSearchList(*d.ref)
+	}
 }

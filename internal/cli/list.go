@@ -157,62 +157,58 @@ func renderList(w io.Writer, entries map[string]store.Entry, now time.Time, useC
 	// Render plain to a buffer first so tabwriter computes column widths from
 	// the actual content. Colour is applied row-by-row afterwards.
 	var buf bytes.Buffer
-	tw := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
-	if _, err := fmt.Fprintln(tw, "NAME\tID\tEXPIRES"); err != nil {
-		return err
-	}
+	tw := newTable(&buf)
+	fmt.Fprintln(tw, "NAME\tID\tEXPIRES")
 	for _, n := range names {
 		e := entries[n]
 		expires := e.Expires
 		if expires == "" {
 			expires = "-"
 		}
-		if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\n", n, e.ID, expires); err != nil {
-			return err
-		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\n", n, e.ID, expires)
 	}
 	if err := tw.Flush(); err != nil {
-		return err
+		return fmt.Errorf("render table: %w", err)
 	}
 
 	if !useColor {
-		_, err := w.Write(buf.Bytes())
-		return err
+		if _, err := w.Write(buf.Bytes()); err != nil {
+			return fmt.Errorf("write table: %w", err)
+		}
+		return nil
 	}
 
 	// Walk the rendered text line-by-line. The first line is the header and
-	// stays uncoloured; the rest align 1:1 with sorted names.
-	lines := strings.SplitAfter(buf.String(), "\n")
-	for i, line := range lines {
-		if i == 0 || line == "" {
-			if _, err := io.WriteString(w, line); err != nil {
-				return err
-			}
-			continue
+	// stays uncoloured; the rest align 1:1 with sorted names. The bounds
+	// check guards against trailing blank lines tabwriter might emit.
+	for i, line := range strings.SplitAfter(buf.String(), "\n") {
+		style := styleNormal
+		if i > 0 && line != "" && i-1 < len(names) {
+			style = expiresStyle(entries[names[i-1]].Expires, now)
 		}
-		// i-1 indexes into names; bounds check guards against trailing blank
-		// lines tabwriter might emit.
-		idx := i - 1
-		if idx >= len(names) {
-			if _, err := io.WriteString(w, line); err != nil {
-				return err
-			}
-			continue
-		}
-		style := expiresStyle(entries[names[idx]].Expires, now)
-		prefix, suffix := ansiFor(style)
-		if prefix == "" {
-			if _, err := io.WriteString(w, line); err != nil {
-				return err
-			}
-			continue
-		}
-		// Wrap the row's content (without trailing newline) so the colour
-		// reset lands before the line break — terminals stop at \n.
-		content := strings.TrimRight(line, "\n")
-		if _, err := fmt.Fprintf(w, "%s%s%s\n", prefix, content, suffix); err != nil {
+		if err := writeStyledLine(w, line, style); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// newTable returns the tabwriter layout shared by every tabular command.
+func newTable(w io.Writer) *tabwriter.Writer {
+	const columnPadding = 2
+	return tabwriter.NewWriter(w, 0, 0, columnPadding, ' ', 0)
+}
+
+// writeStyledLine wraps the line's content (without its trailing newline) in
+// the style's colour so the reset lands before the line break — terminals
+// stop at \n.
+func writeStyledLine(w io.Writer, line string, style rowStyle) error {
+	prefix, suffix := ansiFor(style)
+	if prefix != "" {
+		line = prefix + strings.TrimRight(line, "\n") + suffix + "\n"
+	}
+	if _, err := io.WriteString(w, line); err != nil {
+		return fmt.Errorf("write table: %w", err)
 	}
 	return nil
 }
@@ -238,9 +234,9 @@ func statusFor(s rowStyle) string {
 		return "expired"
 	case styleExpiringSoon:
 		return "expiring_soon"
-	default:
-		return "active"
+	case styleNormal:
 	}
+	return "active"
 }
 
 // renderListJSON writes the entries as a JSON object sorted by name. The
@@ -268,21 +264,30 @@ func renderListJSON(w io.Writer, entries map[string]store.Entry, now time.Time) 
 		})
 	}
 
-	b, err := json.MarshalIndent(out, "", "  ")
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintln(w, string(b))
-	return err
+	return writeJSON(w, out)
 }
 
-func ansiFor(s rowStyle) (prefix, suffix string) {
+// writeJSON writes v as indented JSON followed by a newline.
+func writeJSON(w io.Writer, v any) error {
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode json: %w", err)
+	}
+	if _, err := fmt.Fprintln(w, string(b)); err != nil {
+		return fmt.Errorf("write json: %w", err)
+	}
+	return nil
+}
+
+// ansiFor returns the escape sequences that open and close the style's
+// colour; both are empty for styleNormal.
+func ansiFor(s rowStyle) (string, string) {
 	switch s {
 	case styleExpired:
 		return ansiRed, ansiReset
 	case styleExpiringSoon:
 		return ansiYellow, ansiReset
-	default:
-		return "", ""
+	case styleNormal:
 	}
+	return "", ""
 }

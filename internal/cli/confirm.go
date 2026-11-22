@@ -13,7 +13,7 @@ import (
 // rather than guess.
 func confirm(in io.Reader, prompt io.Writer, question string) (bool, error) {
 	if _, err := fmt.Fprintf(prompt, "%s [y/N] ", question); err != nil {
-		return false, err
+		return false, fmt.Errorf("write prompt: %w", err)
 	}
 	br := bufio.NewReader(in)
 	line, err := br.ReadString('\n')

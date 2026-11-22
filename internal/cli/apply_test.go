@@ -46,6 +46,7 @@ type fakeClient struct {
 func (f *fakeClient) ListPermissionGroups(_ context.Context) ([]cfapi.PermissionGroup, error) {
 	return f.permissionGroups, nil
 }
+
 func (f *fakeClient) ResolveZoneID(_ context.Context, name string) (string, error) {
 	id, ok := f.zones[name]
 	if !ok {
@@ -53,6 +54,7 @@ func (f *fakeClient) ResolveZoneID(_ context.Context, name string) (string, erro
 	}
 	return id, nil
 }
+
 func (f *fakeClient) ResolveTokensByName(_ context.Context, name string) ([]cfapi.Token, error) {
 	f.resolveCalls = append(f.resolveCalls, name)
 	if e, ok := f.resolveErr[name]; ok {
@@ -60,6 +62,7 @@ func (f *fakeClient) ResolveTokensByName(_ context.Context, name string) ([]cfap
 	}
 	return f.tokensByName[name], nil
 }
+
 func (f *fakeClient) CreateToken(_ context.Context, s cfapi.TokenSpec) (*cfapi.CreatedToken, error) {
 	f.createCalls = append(f.createCalls, s)
 	if e, ok := f.createErr[s.Name]; ok {
@@ -69,10 +72,11 @@ func (f *fakeClient) CreateToken(_ context.Context, s cfapi.TokenSpec) (*cfapi.C
 		return r, nil
 	}
 	return &cfapi.CreatedToken{
-		Token: cfapi.Token{ID: "id-" + s.Name, Name: s.Name},
+		ID: "id-" + s.Name, Name: s.Name,
 		Value: "value-of-" + s.Name,
 	}, nil
 }
+
 func (f *fakeClient) UpdateToken(_ context.Context, id string, s cfapi.TokenSpec) (*cfapi.Token, error) {
 	f.updateCalls = append(f.updateCalls, struct {
 		ID   string
@@ -84,9 +88,9 @@ func (f *fakeClient) UpdateToken(_ context.Context, id string, s cfapi.TokenSpec
 	return &cfapi.Token{ID: id, Name: s.Name}, nil
 }
 
-func writeSpec(t *testing.T, dir, name, body string) string {
+func writeSpec(t *testing.T, dir, body string) string {
 	t.Helper()
-	p := filepath.Join(dir, name)
+	p := filepath.Join(dir, "t.yaml")
 	if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -94,8 +98,10 @@ func writeSpec(t *testing.T, dir, name, body string) string {
 }
 
 func TestApply_CreateNewToken(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
-	specPath := writeSpec(t, dir, "t.yaml",
+	specPath := writeSpec(t, dir,
 		`name: dns-editor-example-com
 policies:
   - permissions: [DNS Write]
@@ -159,8 +165,10 @@ expires: 2027-01-01
 }
 
 func TestApply_IsIdempotent_SecondRunUpdatesNotCreates(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
-	specPath := writeSpec(t, dir, "t.yaml",
+	specPath := writeSpec(t, dir,
 		`name: t1
 policies:
   - permissions: [DNS Write]
@@ -181,7 +189,7 @@ policies:
 		withLock:  store.WithLock,
 		newClient: func(string) cfClient { return client },
 	}
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		cmd := newApplyCmd(deps)
 		cmd.SetArgs([]string{specPath})
 		var buf bytes.Buffer
@@ -201,8 +209,10 @@ policies:
 }
 
 func TestApply_DryRun_NoApiCalls(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
-	specPath := writeSpec(t, dir, "t.yaml",
+	specPath := writeSpec(t, dir,
 		`name: t1
 policies:
   - permissions: [DNS Write]
@@ -244,8 +254,10 @@ policies:
 }
 
 func TestApply_NoBootstrap_ExitsAuth(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
-	specPath := writeSpec(t, dir, "t.yaml",
+	specPath := writeSpec(t, dir,
 		`name: t1
 policies:
   - permissions: [X]
@@ -277,9 +289,11 @@ policies:
 }
 
 func TestApply_SpecValidationFailsExitsTwo(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	// Two tokens with the same name; ValidateAll rejects.
-	specPath := writeSpec(t, dir, "t.yaml",
+	specPath := writeSpec(t, dir,
 		`name: dup
 policies:
   - permissions: [X]
@@ -315,8 +329,10 @@ policies:
 }
 
 func TestApply_MissingKeychainValueOnUpdate_Warns(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
-	specPath := writeSpec(t, dir, "t.yaml",
+	specPath := writeSpec(t, dir,
 		`name: known
 policies:
   - permissions: [X]
@@ -347,7 +363,7 @@ policies:
 		specs:     spec.Load,
 		withLock:  store.WithLock,
 		newClient: func(string) cfClient { return client },
-		stderrWarner: func(format string, a ...any) {
+		stderrWarner: func(format string, _ ...any) {
 			warnings = append(warnings, format)
 		},
 	}
@@ -368,8 +384,10 @@ policies:
 }
 
 func TestApply_PartialFailure_PersistsIndexForSucceeded(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
-	specPath := writeSpec(t, dir, "t.yaml",
+	specPath := writeSpec(t, dir,
 		`name: a
 policies: [{permissions: [X], zone: e.com}]
 ---
@@ -444,8 +462,10 @@ policies: [{permissions: [X], zone: e.com}]
 }
 
 func TestApply_FirstActionFails_NothingPersisted(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
-	specPath := writeSpec(t, dir, "t.yaml",
+	specPath := writeSpec(t, dir,
 		`name: a
 policies: [{permissions: [X], zone: e.com}]
 ---
@@ -491,8 +511,10 @@ policies: [{permissions: [X], zone: e.com}]
 }
 
 func TestApply_UnknownPermissionGroup_ExitsSpec(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
-	specPath := writeSpec(t, dir, "t.yaml",
+	specPath := writeSpec(t, dir,
 		`name: t1
 policies:
   - permissions: [Typo]
@@ -542,8 +564,10 @@ func adoptDeps(indexFile string, ks keychain.Store, client cfClient, warnings *[
 }
 
 func TestApply_AdoptExistingToken_WhenIndexMissing(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
-	specPath := writeSpec(t, dir, "t.yaml",
+	specPath := writeSpec(t, dir,
 		`name: known
 policies:
   - permissions: [X]
@@ -606,8 +630,10 @@ policies:
 }
 
 func TestApply_NoRemoteMatch_Creates(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
-	specPath := writeSpec(t, dir, "t.yaml",
+	specPath := writeSpec(t, dir,
 		`name: fresh
 policies:
   - permissions: [X]
@@ -650,8 +676,10 @@ policies:
 }
 
 func TestApply_MultipleRemoteMatches_Fails(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
-	specPath := writeSpec(t, dir, "t.yaml",
+	specPath := writeSpec(t, dir,
 		`name: dupe
 policies:
   - permissions: [X]
@@ -693,8 +721,10 @@ policies:
 }
 
 func TestApply_IndexHit_DoesNotConsultRemote(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
-	specPath := writeSpec(t, dir, "t.yaml",
+	specPath := writeSpec(t, dir,
 		`name: known
 policies:
   - permissions: [X]
@@ -739,8 +769,10 @@ policies:
 }
 
 func TestApply_DryRun_ShowsAdopt_NoMutation(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
-	specPath := writeSpec(t, dir, "t.yaml",
+	specPath := writeSpec(t, dir,
 		`name: known
 policies:
   - permissions: [X]

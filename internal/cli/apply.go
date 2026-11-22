@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/Okabe-Junya/cft/internal/cfapi"
 	"github.com/Okabe-Junya/cft/internal/keychain"
@@ -51,10 +50,12 @@ func newApplyCmd(deps applyDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "apply <file|dir> [<file|dir>...]",
 		Short: "Reconcile token specs with Cloudflare + Keychain + local index",
-		Long: "Reads YAML token specs and ensures Cloudflare matches them: creates missing tokens (storing values in the Keychain), " +
+		Long: "Reads YAML token specs and ensures Cloudflare matches them: " +
+			"creates missing tokens (storing values in the Keychain), " +
 			"updates existing token policies in-place, and never alters token values (use `cft rotate` for that). " +
 			"When a spec'd name is absent from the local index but already exists in Cloudflare, apply adopts that token " +
-			"(records its ID and updates the policy in place) instead of creating a duplicate; since its value is unknown locally, run `cft rotate <name>` before `cft exec`.",
+			"(records its ID and updates the policy in place) instead of creating a duplicate; " +
+			"since its value is unknown locally, run `cft rotate <name>` before `cft exec`.",
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			tokens, err := deps.specs(args...)
@@ -89,15 +90,14 @@ func newApplyCmd(deps applyDeps) *cobra.Command {
 
 // runApply orchestrates the reconcile loop for a single profile. It is split
 // out from the cobra closure so tests can drive it directly when convenient.
-func runApply(ctx context.Context, out io.Writer, tokens []spec.Token, deps applyDeps, dryRun bool, profile string) error {
-	bootstrap, err := deps.keychain.Get(keychain.ServiceBootstrap, profile)
+func runApply(
+	ctx context.Context, out io.Writer, tokens []spec.Token, deps applyDeps, dryRun bool, profile string,
+) error {
+	bootstrap, err := loadBootstrap(deps.keychain, profile)
 	if err != nil {
-		if errors.Is(err, keychain.ErrNotFound) {
-			return withExit(ExitAuth, fmt.Errorf("bootstrap token not found for profile %q. Run: cft login --profile %s", profile, profile))
-		}
 		return err
 	}
-	client := deps.newClient(string(bootstrap))
+	client := deps.newClient(bootstrap)
 
 	r, err := newAPIResolver(ctx, client)
 	if err != nil {
@@ -150,10 +150,12 @@ type action struct {
 // existing ID and updates its policy without touching the value), and >1 is an
 // ambiguous error the operator must resolve by hand. The remote lookup only
 // runs for index misses, so an intact index preserves the prior behavior.
-func buildPlan(ctx context.Context, tokens []spec.Token, p *store.Profile, r resolver, client cfClient) ([]action, error) {
+func buildPlan(
+	ctx context.Context, tokens []spec.Token, p *store.Profile, r resolver, client cfClient,
+) ([]action, error) {
 	out := make([]action, 0, len(tokens))
 	for _, t := range tokens {
-		cf, err := translateToken(t, r)
+		cf, err := translateToken(ctx, t, r)
 		if err != nil {
 			return nil, err
 		}
@@ -177,7 +179,9 @@ func buildPlan(ctx context.Context, tokens []spec.Token, p *store.Profile, r res
 				for i, m := range matches {
 					ids[i] = m.ID
 				}
-				return nil, fmt.Errorf("token %q is ambiguous: %d existing Cloudflare tokens share this name (IDs: %s); delete the duplicates so exactly one remains, then re-run apply", t.Name, len(matches), strings.Join(ids, ", "))
+				return nil, fmt.Errorf("token %q is ambiguous: %d existing Cloudflare tokens share this name (IDs: %s); "+
+					"delete the duplicates so exactly one remains, then re-run apply",
+					t.Name, len(matches), strings.Join(ids, ", "))
 			}
 		}
 		out = append(out, a)
@@ -186,7 +190,7 @@ func buildPlan(ctx context.Context, tokens []spec.Token, p *store.Profile, r res
 }
 
 func printPlan(w io.Writer, plan []action, dryRun bool) {
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	tw := newTable(w)
 	defer tw.Flush()
 	header := "OP\tNAME\tID\tEXPIRES"
 	if dryRun {
@@ -214,7 +218,9 @@ func printPlan(w io.Writer, plan []action, dryRun bool) {
 // of actions that fully succeeded (Cloudflare + Keychain + idx mutation).
 // If a later action fails after at least one success, the error is wrapped
 // in *store.PartialError so WithLock persists the successful entries.
-func executePlan(ctx context.Context, plan []action, p *store.Profile, client cfClient, deps applyDeps, profile string) (int, error) {
+func executePlan(
+	ctx context.Context, plan []action, p *store.Profile, client cfClient, deps applyDeps, profile string,
+) (int, error) {
 	for i, a := range plan {
 		if err := applyOne(ctx, a, p, client, deps, profile); err != nil {
 			if i > 0 {
@@ -243,7 +249,8 @@ func applyOne(ctx context.Context, a action, p *store.Profile, client cfClient, 
 			return fmt.Errorf("update token %q: %w", a.token.Name, err)
 		}
 		if _, err := deps.keychain.Get(keychain.ServiceTokens, acct); errors.Is(err, keychain.ErrNotFound) {
-			deps.stderrWarner("token %q value missing from Keychain; run `cft rotate %s` to re-issue", a.token.Name, a.token.Name)
+			deps.stderrWarner("token %q value missing from Keychain; run `cft rotate %s` to re-issue",
+				a.token.Name, a.token.Name)
 		}
 		p.Set(a.token.Name, store.Entry{ID: a.id, Expires: a.expires})
 	case "adopt":
@@ -255,7 +262,8 @@ func applyOne(ctx context.Context, a action, p *store.Profile, client cfClient, 
 			return fmt.Errorf("adopt token %q: %w", a.token.Name, err)
 		}
 		p.Set(a.token.Name, store.Entry{ID: a.id, Expires: a.expires})
-		deps.stderrWarner("adopted existing token %q (id %s); its value is not stored locally, run `cft rotate %s` before `cft exec`", a.token.Name, a.id, a.token.Name)
+		deps.stderrWarner("adopted existing token %q (id %s); its value is not stored locally, "+
+			"run `cft rotate %s` before `cft exec`", a.token.Name, a.id, a.token.Name)
 	}
 	return nil
 }

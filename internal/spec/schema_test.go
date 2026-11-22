@@ -63,6 +63,8 @@ func validateWithGo(src string) error {
 // Cross-document rules (duplicate names) are out of the schema's reach and not
 // covered here.
 func TestSchema_MatchesGoValidation(t *testing.T) {
+	t.Parallel()
+
 	sch := compileSchema(t)
 
 	cases := []struct {
@@ -254,6 +256,8 @@ policies:
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			goErr := validateWithGo(tc.src)
 			schemaErr := validateWithSchema(t, sch, tc.src)
 			if (goErr == nil) != tc.valid {

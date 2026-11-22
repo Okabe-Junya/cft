@@ -23,6 +23,8 @@ func (f fakeVerifier) Verify(_ context.Context) (*cfapi.Token, error) {
 }
 
 func TestLogin_FromEnv_Success(t *testing.T) {
+	t.Parallel()
+
 	ks := keychain.NewFake()
 	cmd := newLoginCmdWithDeps(loginDeps{
 		keychain: ks,
@@ -60,6 +62,8 @@ func TestLogin_FromEnv_Success(t *testing.T) {
 }
 
 func TestLogin_FromEnv_Empty(t *testing.T) {
+	t.Parallel()
+
 	cmd := newLoginCmdWithDeps(loginDeps{
 		keychain:   keychain.NewFake(),
 		stdin:      strings.NewReader(""),
@@ -87,6 +91,8 @@ func TestLogin_FromEnv_Empty(t *testing.T) {
 }
 
 func TestLogin_Stdin_NonTTY(t *testing.T) {
+	t.Parallel()
+
 	ks := keychain.NewFake()
 	cmd := newLoginCmdWithDeps(loginDeps{
 		keychain:   ks,
@@ -115,6 +121,8 @@ func TestLogin_Stdin_NonTTY(t *testing.T) {
 }
 
 func TestLogin_TTYPrompt(t *testing.T) {
+	t.Parallel()
+
 	ks := keychain.NewFake()
 	cmd := newLoginCmdWithDeps(loginDeps{
 		keychain:   ks,
@@ -145,6 +153,8 @@ func TestLogin_TTYPrompt(t *testing.T) {
 }
 
 func TestLogin_VerifyFails_ExitsThree_NoKeychainWrite(t *testing.T) {
+	t.Parallel()
+
 	ks := keychain.NewFake()
 	cmd := newLoginCmdWithDeps(loginDeps{
 		keychain:   ks,
@@ -174,6 +184,8 @@ func TestLogin_VerifyFails_ExitsThree_NoKeychainWrite(t *testing.T) {
 }
 
 func TestLogin_TrimsWhitespace(t *testing.T) {
+	t.Parallel()
+
 	ks := keychain.NewFake()
 	cmd := newLoginCmdWithDeps(loginDeps{
 		keychain:    ks,

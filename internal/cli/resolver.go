@@ -14,7 +14,6 @@ import (
 // permission-group list and zone lookups for the lifetime of one apply run
 // so the same spec referencing "DNS Write" three times costs one API call.
 type apiResolver struct {
-	ctx    context.Context
 	client cfClient
 	groups map[string]map[string]string // cf scope → name → id
 	zones  map[string]string            // name → id (only resolutions we have made)
@@ -30,7 +29,6 @@ func newAPIResolver(ctx context.Context, client cfClient) (*apiResolver, error) 
 		return nil, err
 	}
 	return &apiResolver{
-		ctx:    ctx,
 		client: client,
 		groups: idx,
 		zones:  map[string]string{},
@@ -77,16 +75,17 @@ func (r *apiResolver) PermissionGroupID(name, specScope string) (string, error) 
 	}
 	if len(others) > 0 {
 		sort.Strings(others)
-		return "", fmt.Errorf("permission group %q is not available for %s-scoped policies (Cloudflare offers it for: %s)", name, specScope, strings.Join(others, ", "))
+		return "", fmt.Errorf("permission group %q is not available for %s-scoped policies (Cloudflare offers it for: %s)",
+			name, specScope, strings.Join(others, ", "))
 	}
 	return "", fmt.Errorf("unknown permission group %q (check spelling against Cloudflare's list)", name)
 }
 
-func (r *apiResolver) ResolveZoneID(name string) (string, error) {
+func (r *apiResolver) ResolveZoneID(ctx context.Context, name string) (string, error) {
 	if id, ok := r.zones[name]; ok {
 		return id, nil
 	}
-	id, err := r.client.ResolveZoneID(r.ctx, name)
+	id, err := r.client.ResolveZoneID(ctx, name)
 	if err != nil {
 		return "", err
 	}

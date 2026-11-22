@@ -14,6 +14,8 @@ import (
 // for groups the API listed without scopes, and point at the available
 // scope when the name exists only elsewhere.
 func TestAPIResolver_ScopeAwarePermissionGroups(t *testing.T) {
+	t.Parallel()
+
 	fc := &fakeClient{
 		permissionGroups: []cfapi.PermissionGroup{
 			{ID: "acct-id", Name: "Access: Apps and Policies Read", Scopes: []string{cfapi.ScopeAccount}},
