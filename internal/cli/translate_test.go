@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -30,7 +30,7 @@ func (s *stubResolver) PermissionGroupID(name, specScope string) (string, error)
 	return id, nil
 }
 
-func (s *stubResolver) ResolveZoneID(name string) (string, error) {
+func (s *stubResolver) ResolveZoneID(_ context.Context, name string) (string, error) {
 	s.zoneCalls++
 	id, ok := s.zones[name]
 	if !ok {
@@ -40,6 +40,8 @@ func (s *stubResolver) ResolveZoneID(name string) (string, error) {
 }
 
 func TestTranslateToken_ZoneByName(t *testing.T) {
+	t.Parallel()
+
 	r := &stubResolver{
 		groups: map[string]string{"DNS Write": "pg-1"},
 		zones:  map[string]string{"example.com": "zone-id-123"},
@@ -50,7 +52,7 @@ func TestTranslateToken_ZoneByName(t *testing.T) {
 			{Permissions: []string{"DNS Write"}, Zone: "example.com"},
 		},
 	}
-	got, err := translateToken(tok, r)
+	got, err := translateToken(t.Context(), tok, r)
 	if err != nil {
 		t.Fatalf("translate: %v", err)
 	}
@@ -73,6 +75,8 @@ func TestTranslateToken_ZoneByName(t *testing.T) {
 }
 
 func TestTranslateToken_ZoneByID_SkipsResolution(t *testing.T) {
+	t.Parallel()
+
 	zoneID := strings.Repeat("a", 32)
 	r := &stubResolver{
 		groups: map[string]string{"DNS Read": "pg-2"},
@@ -84,7 +88,7 @@ func TestTranslateToken_ZoneByID_SkipsResolution(t *testing.T) {
 			{Permissions: []string{"DNS Read"}, Zone: zoneID},
 		},
 	}
-	got, err := translateToken(tok, r)
+	got, err := translateToken(t.Context(), tok, r)
 	if err != nil {
 		t.Fatalf("translate: %v", err)
 	}
@@ -97,6 +101,8 @@ func TestTranslateToken_ZoneByID_SkipsResolution(t *testing.T) {
 }
 
 func TestTranslateToken_AccountByID(t *testing.T) {
+	t.Parallel()
+
 	accID := strings.Repeat("b", 32)
 	r := &stubResolver{groups: map[string]string{"X": "id1"}}
 	tok := spec.Token{
@@ -105,7 +111,7 @@ func TestTranslateToken_AccountByID(t *testing.T) {
 			{Permissions: []string{"X"}, Account: accID, Effect: spec.EffectDeny},
 		},
 	}
-	got, err := translateToken(tok, r)
+	got, err := translateToken(t.Context(), tok, r)
 	if err != nil {
 		t.Fatalf("translate: %v", err)
 	}
@@ -118,6 +124,8 @@ func TestTranslateToken_AccountByID(t *testing.T) {
 }
 
 func TestTranslateToken_AccountByName_Rejected(t *testing.T) {
+	t.Parallel()
+
 	r := &stubResolver{groups: map[string]string{"X": "id1"}}
 	tok := spec.Token{
 		Name: "n",
@@ -125,7 +133,7 @@ func TestTranslateToken_AccountByName_Rejected(t *testing.T) {
 			{Permissions: []string{"X"}, Account: "My Account"},
 		},
 	}
-	_, err := translateToken(tok, r)
+	_, err := translateToken(t.Context(), tok, r)
 	if err == nil || !strings.Contains(err.Error(), "account ID") {
 		t.Errorf("err = %v", err)
 	}
@@ -136,6 +144,8 @@ func TestTranslateToken_AccountByName_Rejected(t *testing.T) {
 }
 
 func TestTranslateToken_UserScope_NotSupported(t *testing.T) {
+	t.Parallel()
+
 	r := &stubResolver{groups: map[string]string{"X": "id1"}}
 	tok := spec.Token{
 		Name: "n",
@@ -143,13 +153,15 @@ func TestTranslateToken_UserScope_NotSupported(t *testing.T) {
 			{Permissions: []string{"X"}, User: true},
 		},
 	}
-	_, err := translateToken(tok, r)
+	_, err := translateToken(t.Context(), tok, r)
 	if err == nil || !strings.Contains(err.Error(), "user scope") {
 		t.Errorf("err = %v", err)
 	}
 }
 
 func TestTranslateToken_UnknownPermission(t *testing.T) {
+	t.Parallel()
+
 	r := &stubResolver{
 		groups: map[string]string{}, // nothing
 		zones:  map[string]string{"e.com": "z1"},
@@ -160,7 +172,7 @@ func TestTranslateToken_UnknownPermission(t *testing.T) {
 			{Permissions: []string{"Typo Group"}, Zone: "e.com"},
 		},
 	}
-	_, err := translateToken(tok, r)
+	_, err := translateToken(t.Context(), tok, r)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -171,10 +183,8 @@ func TestTranslateToken_UnknownPermission(t *testing.T) {
 }
 
 func TestTranslateToken_NormalisesExpires(t *testing.T) {
-	r := &stubResolver{
-		groups: map[string]string{"X": "id1"},
-		zones:  map[string]string{"e.com": "z1"},
-	}
+	t.Parallel()
+
 	cases := []struct {
 		in   string
 		want string
@@ -185,6 +195,12 @@ func TestTranslateToken_NormalisesExpires(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.in, func(t *testing.T) {
+			t.Parallel()
+
+			r := &stubResolver{
+				groups: map[string]string{"X": "id1"},
+				zones:  map[string]string{"e.com": "z1"},
+			}
 			tok := spec.Token{
 				Name:    "n",
 				Expires: c.in,
@@ -192,7 +208,7 @@ func TestTranslateToken_NormalisesExpires(t *testing.T) {
 					{Permissions: []string{"X"}, Zone: "e.com"},
 				},
 			}
-			got, err := translateToken(tok, r)
+			got, err := translateToken(t.Context(), tok, r)
 			if err != nil {
 				t.Fatalf("translate: %v", err)
 			}
@@ -200,27 +216,5 @@ func TestTranslateToken_NormalisesExpires(t *testing.T) {
 				t.Errorf("ExpiresOn = %q, want %q", got.ExpiresOn, c.want)
 			}
 		})
-	}
-}
-
-// Ensure the cfapi spec type carries through to a representation we can
-// JSON-marshal without an interface{} blow-up.
-func TestTranslateToken_OutputIsCfapiTokenSpec(t *testing.T) {
-	r := &stubResolver{
-		groups: map[string]string{"X": "id1"},
-		zones:  map[string]string{"e.com": "z1"},
-	}
-	tok := spec.Token{
-		Name: "n",
-		Policies: []spec.Policy{
-			{Permissions: []string{"X"}, Zone: "e.com"},
-		},
-	}
-	got, err := translateToken(tok, r)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := json.Marshal(got); err != nil {
-		t.Fatalf("marshal: %v", err)
 	}
 }

@@ -5,5 +5,7 @@ package schema
 
 import _ "embed"
 
+// TokenSpec is the JSON Schema for one document of a cft token spec file.
+//
 //go:embed cft-token.schema.json
 var TokenSpec []byte

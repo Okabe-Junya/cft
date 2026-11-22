@@ -16,6 +16,8 @@ func validToken() Token {
 }
 
 func TestValidate_Cases(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		mutate  func(*Token)
@@ -98,12 +100,14 @@ func TestValidate_Cases(t *testing.T) {
 		},
 		{
 			name:    "happy path",
-			mutate:  func(t *Token) {},
+			mutate:  func(*Token) {},
 			wantErr: "",
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			tok := validToken()
 			c.mutate(&tok)
 			err := tok.Validate()
@@ -124,6 +128,8 @@ func TestValidate_Cases(t *testing.T) {
 }
 
 func TestValidateAll_DuplicateName(t *testing.T) {
+	t.Parallel()
+
 	a := validToken()
 	a.Name = "dup"
 	b := validToken()
@@ -135,6 +141,8 @@ func TestValidateAll_DuplicateName(t *testing.T) {
 }
 
 func TestValidateAll_AllValid(t *testing.T) {
+	t.Parallel()
+
 	a := validToken()
 	a.Name = "a"
 	b := validToken()
@@ -145,7 +153,11 @@ func TestValidateAll_AllValid(t *testing.T) {
 }
 
 func TestExpiresAt(t *testing.T) {
+	t.Parallel()
+
 	t.Run("empty", func(t *testing.T) {
+		t.Parallel()
+
 		tok := validToken()
 		got, ok, err := tok.ExpiresAt()
 		if err != nil || ok || !got.IsZero() {
@@ -153,6 +165,8 @@ func TestExpiresAt(t *testing.T) {
 		}
 	})
 	t.Run("rfc3339", func(t *testing.T) {
+		t.Parallel()
+
 		tok := validToken()
 		tok.Expires = "2026-12-31T00:00:00Z"
 		got, ok, err := tok.ExpiresAt()
@@ -164,6 +178,8 @@ func TestExpiresAt(t *testing.T) {
 		}
 	})
 	t.Run("date", func(t *testing.T) {
+		t.Parallel()
+
 		tok := validToken()
 		tok.Expires = "2026-12-31"
 		got, ok, err := tok.ExpiresAt()
@@ -177,6 +193,8 @@ func TestExpiresAt(t *testing.T) {
 }
 
 func TestPolicy_Scope(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		p    Policy
 		want string
@@ -194,6 +212,8 @@ func TestPolicy_Scope(t *testing.T) {
 }
 
 func TestPolicy_NormalizedEffect(t *testing.T) {
+	t.Parallel()
+
 	if got := (Policy{}.NormalizedEffect()); got != EffectAllow {
 		t.Errorf("default effect = %q, want %q", got, EffectAllow)
 	}

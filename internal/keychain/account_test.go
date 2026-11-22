@@ -3,6 +3,8 @@ package keychain
 import "testing"
 
 func TestTokenAccount(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		profile, name, want string
 	}{

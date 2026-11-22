@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -19,14 +21,14 @@ var idLike = regexp.MustCompile(`^[a-f0-9]{32}$`)
 // the policy's spec scope (spec.ScopeZone / ScopeAccount / ScopeUser) because
 // Cloudflare reuses group names across scopes with different IDs.
 type resolver interface {
-	ResolveZoneID(name string) (string, error)
+	ResolveZoneID(ctx context.Context, name string) (string, error)
 	PermissionGroupID(name, specScope string) (string, error)
 }
 
 // translateToken converts a validated spec.Token into the request body the
 // Cloudflare token API expects. Returns ExitSpec-coded errors so the user
 // sees a 2 exit on bad specs.
-func translateToken(t spec.Token, r resolver) (cfapi.TokenSpec, error) {
+func translateToken(ctx context.Context, t spec.Token, r resolver) (cfapi.TokenSpec, error) {
 	out := cfapi.TokenSpec{Name: t.Name}
 	if t.Expires != "" {
 		exp, err := normaliseExpires(t.Expires)
@@ -36,7 +38,7 @@ func translateToken(t spec.Token, r resolver) (cfapi.TokenSpec, error) {
 		out.ExpiresOn = exp
 	}
 	for pi, p := range t.Policies {
-		cfp, err := translatePolicy(p, r)
+		cfp, err := translatePolicy(ctx, p, r)
 		if err != nil {
 			return cfapi.TokenSpec{}, withExit(ExitSpec, fmt.Errorf("token %q: policies[%d]: %w", t.Name, pi, err))
 		}
@@ -45,7 +47,7 @@ func translateToken(t spec.Token, r resolver) (cfapi.TokenSpec, error) {
 	return out, nil
 }
 
-func translatePolicy(p spec.Policy, r resolver) (cfapi.TokenPolicy, error) {
+func translatePolicy(ctx context.Context, p spec.Policy, r resolver) (cfapi.TokenPolicy, error) {
 	groups := make([]cfapi.PermissionGroup, 0, len(p.Permissions))
 	for _, name := range p.Permissions {
 		id, err := r.PermissionGroupID(name, p.Scope())
@@ -55,7 +57,7 @@ func translatePolicy(p spec.Policy, r resolver) (cfapi.TokenPolicy, error) {
 		groups = append(groups, cfapi.PermissionGroup{ID: id})
 	}
 
-	res, err := resolveScope(p, r)
+	res, err := resolveScope(ctx, p, r)
 	if err != nil {
 		return cfapi.TokenPolicy{}, err
 	}
@@ -66,12 +68,12 @@ func translatePolicy(p spec.Policy, r resolver) (cfapi.TokenPolicy, error) {
 	}, nil
 }
 
-func resolveScope(p spec.Policy, r resolver) (map[string]string, error) {
+func resolveScope(ctx context.Context, p spec.Policy, r resolver) (map[string]string, error) {
 	switch p.Scope() {
 	case spec.ScopeZone:
 		id := p.Zone
 		if !idLike.MatchString(id) {
-			resolved, err := r.ResolveZoneID(p.Zone)
+			resolved, err := r.ResolveZoneID(ctx, p.Zone)
 			if err != nil {
 				return nil, err
 			}
@@ -92,10 +94,10 @@ func resolveScope(p spec.Policy, r resolver) (map[string]string, error) {
 		// v1: not yet supported because resolving the current user requires
 		// an extra API call we have not wired up. Surface a precise error so
 		// the user knows what we did not do, not just "invalid spec".
-		return nil, fmt.Errorf("user scope is not supported in v1; track follow-up if you need it")
+		return nil, errors.New("user scope is not supported in v1; track follow-up if you need it")
 
 	default:
-		return nil, fmt.Errorf("policy has no scope (validator should have caught this)")
+		return nil, errors.New("policy has no scope (validator should have caught this)")
 	}
 }
 

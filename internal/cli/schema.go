@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/Okabe-Junya/cft/schema"
 	"github.com/spf13/cobra"
 )
@@ -15,8 +17,10 @@ func newSchemaCmd() *cobra.Command {
 			"see README \"Editor support\".",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			_, err := cmd.OutOrStdout().Write(schema.TokenSpec)
-			return err
+			if _, err := cmd.OutOrStdout().Write(schema.TokenSpec); err != nil {
+				return fmt.Errorf("write schema: %w", err)
+			}
+			return nil
 		},
 	}
 }

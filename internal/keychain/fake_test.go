@@ -9,6 +9,8 @@ import (
 )
 
 func TestFake_GetMissing(t *testing.T) {
+	t.Parallel()
+
 	f := NewFake()
 	_, err := f.Get("svc", "acc")
 	if !errors.Is(err, ErrNotFound) {
@@ -17,6 +19,8 @@ func TestFake_GetMissing(t *testing.T) {
 }
 
 func TestFake_SetGetRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	f := NewFake()
 	if err := f.Set("svc", "acc", []byte("secret")); err != nil {
 		t.Fatalf("Set: %v", err)
@@ -31,6 +35,8 @@ func TestFake_SetGetRoundTrip(t *testing.T) {
 }
 
 func TestFake_SetOverwrites(t *testing.T) {
+	t.Parallel()
+
 	f := NewFake()
 	_ = f.Set("svc", "acc", []byte("v1"))
 	_ = f.Set("svc", "acc", []byte("v2"))
@@ -41,6 +47,8 @@ func TestFake_SetOverwrites(t *testing.T) {
 }
 
 func TestFake_DeleteIdempotent(t *testing.T) {
+	t.Parallel()
+
 	f := NewFake()
 	if err := f.Delete("svc", "missing"); err != nil {
 		t.Errorf("Delete missing: %v", err)
@@ -55,6 +63,8 @@ func TestFake_DeleteIdempotent(t *testing.T) {
 }
 
 func TestFake_ListReturnsSortedAccounts(t *testing.T) {
+	t.Parallel()
+
 	f := NewFake()
 	_ = f.Set("svc", "zeta", []byte("z"))
 	_ = f.Set("svc", "alpha", []byte("a"))
@@ -72,6 +82,8 @@ func TestFake_ListReturnsSortedAccounts(t *testing.T) {
 }
 
 func TestFake_GetReturnsCopy(t *testing.T) {
+	t.Parallel()
+
 	// Mutating the slice the caller receives must not change what's stored,
 	// otherwise a downstream test that scrubs the buffer could corrupt the
 	// fake's state.
@@ -86,9 +98,11 @@ func TestFake_GetReturnsCopy(t *testing.T) {
 }
 
 func TestFake_SetIsGoroutineSafe(t *testing.T) {
+	t.Parallel()
+
 	f := NewFake()
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()

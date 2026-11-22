@@ -13,6 +13,8 @@ import (
 )
 
 func TestList_EmptyIndex(t *testing.T) {
+	t.Parallel()
+
 	cmd := newListCmd(func() (*store.Index, error) {
 		return store.NewIndex(), nil
 	})
@@ -34,6 +36,8 @@ func TestList_EmptyIndex(t *testing.T) {
 }
 
 func TestList_SortedByName(t *testing.T) {
+	t.Parallel()
+
 	cmd := newListCmd(func() (*store.Index, error) {
 		i := store.NewIndex()
 		// Insert deliberately out of order to verify sort.
@@ -66,7 +70,9 @@ func TestList_SortedByName(t *testing.T) {
 }
 
 func TestList_PropagatesLoadError(t *testing.T) {
-	sentinel := errString("load boom")
+	t.Parallel()
+
+	sentinel := errors.New("load boom")
 	cmd := newListCmd(func() (*store.Index, error) { return nil, sentinel })
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -77,29 +83,26 @@ func TestList_PropagatesLoadError(t *testing.T) {
 	}
 }
 
-type errString string
-
-func (e errString) Error() string { return string(e) }
-
 // listIndex builds a fixture with known names and expires for colour tests.
 func listIndex() *store.Index {
 	i := store.NewIndex()
-	i.Profile(store.DefaultProfile).Set("expired-row", store.Entry{ID: "id-e", Expires: "2025-01-01"})
-	i.Profile(store.DefaultProfile).Set("soon-row", store.Entry{ID: "id-s", Expires: "2026-06-10"}) // ~11 days after fixedNow
-	i.Profile(store.DefaultProfile).Set("safe-row", store.Entry{ID: "id-x", Expires: "2027-01-01"})
-	i.Profile(store.DefaultProfile).Set("no-expires", store.Entry{ID: "id-n"})
+	p := i.Profile(store.DefaultProfile)
+	p.Set("expired-row", store.Entry{ID: "id-e", Expires: "2025-01-01"})
+	p.Set("soon-row", store.Entry{ID: "id-s", Expires: "2026-06-10"}) // ~11 days after fixedNow
+	p.Set("safe-row", store.Entry{ID: "id-x", Expires: "2027-01-01"})
+	p.Set("no-expires", store.Entry{ID: "id-n"})
 	return i
 }
 
 // fixedNow is the wall clock the colour tests pin to. 2026-05-30 is between
 // "expired-row" (past) and "soon-row" (~11 days ahead).
-var fixedNow = time.Date(2026, 5, 30, 0, 0, 0, 0, time.UTC)
+func fixedNow() time.Time { return time.Date(2026, 5, 30, 0, 0, 0, 0, time.UTC) }
 
 func runColored(t *testing.T, noColor bool, isTTY bool, env map[string]string) string {
 	t.Helper()
 	deps := listDeps{
 		load:  func() (*store.Index, error) { return listIndex(), nil },
-		now:   func() time.Time { return fixedNow },
+		now:   fixedNow,
 		isTTY: func() bool { return isTTY },
 		getenv: func(k string) string {
 			if env == nil {
@@ -124,9 +127,11 @@ func runColored(t *testing.T, noColor bool, isTTY bool, env map[string]string) s
 }
 
 func TestList_Color_OnTTY_HighlightsExpiredAndSoon(t *testing.T) {
+	t.Parallel()
+
 	got := runColored(t, false /*noColor*/, true /*isTTY*/, nil)
 	// Header carries no ANSI.
-	header := strings.SplitN(got, "\n", 2)[0]
+	header, _, _ := strings.Cut(got, "\n")
 	if strings.Contains(header, "\x1b[") {
 		t.Errorf("header should not contain ANSI: %q", header)
 	}
@@ -149,7 +154,7 @@ func TestList_Color_OnTTY_HighlightsExpiredAndSoon(t *testing.T) {
 	}
 	// Lines for safe-row and no-expires must be ANSI-free.
 	for _, name := range []string{"safe-row", "no-expires"} {
-		for _, line := range strings.Split(got, "\n") {
+		for line := range strings.SplitSeq(got, "\n") {
 			if strings.Contains(line, name) && strings.Contains(line, "\x1b[") {
 				t.Errorf("row %s should be uncoloured, got %q", name, line)
 			}
@@ -158,6 +163,8 @@ func TestList_Color_OnTTY_HighlightsExpiredAndSoon(t *testing.T) {
 }
 
 func TestList_Color_OffWhenNotTTY(t *testing.T) {
+	t.Parallel()
+
 	got := runColored(t, false, false, nil)
 	if strings.Contains(got, "\x1b[") {
 		t.Errorf("non-TTY output must be plain, got %q", got)
@@ -165,6 +172,8 @@ func TestList_Color_OffWhenNotTTY(t *testing.T) {
 }
 
 func TestList_Color_NoColorFlagWins(t *testing.T) {
+	t.Parallel()
+
 	got := runColored(t, true /*noColor*/, true /*isTTY*/, nil)
 	if strings.Contains(got, "\x1b[") {
 		t.Errorf("--no-color must suppress ANSI even on TTY, got %q", got)
@@ -172,6 +181,8 @@ func TestList_Color_NoColorFlagWins(t *testing.T) {
 }
 
 func TestList_Color_NoColorEnvWins(t *testing.T) {
+	t.Parallel()
+
 	got := runColored(t, false, true, map[string]string{"NO_COLOR": "1"})
 	if strings.Contains(got, "\x1b[") {
 		t.Errorf("NO_COLOR must suppress ANSI, got %q", got)
@@ -183,7 +194,7 @@ func listJSONOut(t *testing.T, load indexLoader) []byte {
 	t.Helper()
 	deps := listDeps{
 		load:   load,
-		now:    func() time.Time { return fixedNow },
+		now:    fixedNow,
 		isTTY:  func() bool { return true }, // even on a TTY, --json must stay plain
 		getenv: func(string) string { return "" },
 	}
@@ -199,6 +210,8 @@ func listJSONOut(t *testing.T, load indexLoader) []byte {
 }
 
 func TestList_JSON_StructureAndStatus(t *testing.T) {
+	t.Parallel()
+
 	raw := listJSONOut(t, func() (*store.Index, error) { return listIndex(), nil })
 
 	if bytes.Contains(raw, []byte("\x1b[")) {
@@ -261,6 +274,8 @@ func TestList_JSON_StructureAndStatus(t *testing.T) {
 }
 
 func TestList_JSON_EmptyIndexIsEmptyArray(t *testing.T) {
+	t.Parallel()
+
 	raw := listJSONOut(t, func() (*store.Index, error) { return store.NewIndex(), nil })
 	// An empty index must serialise tokens as [] (not null) so agents can
 	// iterate unconditionally.
@@ -279,6 +294,8 @@ func TestList_JSON_EmptyIndexIsEmptyArray(t *testing.T) {
 }
 
 func TestExpiresStyle_Boundaries(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)
 	cases := []struct {
 		in   string

@@ -28,7 +28,7 @@ func completeTokenNames(load indexLoader) completionFunc {
 }
 
 func completeProfileNames(load indexLoader) completionFunc {
-	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return func(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}

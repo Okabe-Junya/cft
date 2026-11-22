@@ -15,6 +15,8 @@ import (
 )
 
 func TestResolveProfile_Precedence(t *testing.T) {
+	t.Parallel()
+
 	idx := store.NewIndex()
 	idx.Current = "curr"
 	withEnv := func(k string) string {
@@ -43,6 +45,8 @@ func TestResolveProfile_Precedence(t *testing.T) {
 }
 
 func TestProfileFromCmd_ReadsInheritedPersistentFlag(t *testing.T) {
+	t.Parallel()
+
 	root := &cobra.Command{Use: "root"}
 	root.PersistentFlags().String("profile", "", "")
 	var seen string
@@ -92,6 +96,8 @@ func profileTestDeps(t *testing.T, fromEnvToken string) (string, *keychain.Fake,
 }
 
 func TestProfileAdd_StoresBootstrapAndSetsCurrentWhenEmpty(t *testing.T) {
+	t.Parallel()
+
 	path, ks, deps := profileTestDeps(t, "tokA")
 	cmd := newProfileAddCmd(deps)
 	cmd.SetArgs([]string{"--from-env", "alumni"})
@@ -114,6 +120,8 @@ func TestProfileAdd_StoresBootstrapAndSetsCurrentWhenEmpty(t *testing.T) {
 }
 
 func TestProfileAdd_DoesNotSwitchCurrentWhenAlreadySet(t *testing.T) {
+	t.Parallel()
+
 	path, _, deps := profileTestDeps(t, "tokB")
 	// Pre-seed a current profile.
 	if err := store.WithLock(path, func(i *store.Index) error {
@@ -141,6 +149,8 @@ func TestProfileAdd_DoesNotSwitchCurrentWhenAlreadySet(t *testing.T) {
 }
 
 func TestProfileUse_SetsCurrent(t *testing.T) {
+	t.Parallel()
+
 	path, ks, deps := profileTestDeps(t, "")
 	_ = ks.Set(keychain.ServiceBootstrap, "gmail", []byte("bs"))
 	cmd := newProfileUseCmd(deps)
@@ -158,6 +168,8 @@ func TestProfileUse_SetsCurrent(t *testing.T) {
 }
 
 func TestProfileUse_WarnsWhenNoBootstrap(t *testing.T) {
+	t.Parallel()
+
 	_, _, deps := profileTestDeps(t, "")
 	cmd := newProfileUseCmd(deps)
 	cmd.SetArgs([]string{"typo-profile"})
@@ -173,6 +185,8 @@ func TestProfileUse_WarnsWhenNoBootstrap(t *testing.T) {
 }
 
 func TestProfileCurrent_PrintsCurrentOrDefault(t *testing.T) {
+	t.Parallel()
+
 	path, _, deps := profileTestDeps(t, "")
 
 	// No current set → default note.
@@ -204,6 +218,8 @@ func TestProfileCurrent_PrintsCurrentOrDefault(t *testing.T) {
 }
 
 func TestProfileList_ShowsProfilesAndCurrentMarker(t *testing.T) {
+	t.Parallel()
+
 	path, ks, deps := profileTestDeps(t, "")
 	_ = ks.Set(keychain.ServiceBootstrap, "gmail", []byte("bs"))
 	if err := store.WithLock(path, func(i *store.Index) error {
@@ -228,7 +244,7 @@ func TestProfileList_ShowsProfilesAndCurrentMarker(t *testing.T) {
 		}
 	}
 	// The current marker '*' must sit on the gmail row.
-	for _, line := range strings.Split(got, "\n") {
+	for line := range strings.SplitSeq(got, "\n") {
 		if strings.Contains(line, "gmail") && !strings.Contains(line, "*") {
 			t.Errorf("gmail row missing current marker: %q", line)
 		}
@@ -239,6 +255,8 @@ func TestProfileList_ShowsProfilesAndCurrentMarker(t *testing.T) {
 }
 
 func TestProfileList_JSON(t *testing.T) {
+	t.Parallel()
+
 	path, ks, deps := profileTestDeps(t, "")
 	_ = ks.Set(keychain.ServiceBootstrap, "gmail", []byte("bs"))
 	if err := store.WithLock(path, func(i *store.Index) error {

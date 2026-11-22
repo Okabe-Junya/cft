@@ -36,6 +36,7 @@ func profileCmd(t *testing.T, val string) *cobra.Command {
 	return cmd
 }
 
+//nolint:paralleltest // profileCmd clears $CFT_PROFILE with t.Setenv.
 func TestCompleteTokenNames(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -86,6 +87,7 @@ func TestCompleteTokenNames(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // profileCmd clears $CFT_PROFILE with t.Setenv.
 func TestCompleteTokenNames_LoadErrorOffersNothing(t *testing.T) {
 	load := func() (*store.Index, error) { return nil, errors.New("boom") }
 	got, dir := completeTokenNames(load)(profileCmd(t, ""), nil, "")
@@ -97,6 +99,7 @@ func TestCompleteTokenNames_LoadErrorOffersNothing(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // profileCmd clears $CFT_PROFILE with t.Setenv.
 func TestCompleteProfileNames(t *testing.T) {
 	got, dir := completeProfileNames(fixtureLoader())(profileCmd(t, ""), nil, "")
 	want := []string{"default", "work"}

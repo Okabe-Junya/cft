@@ -22,7 +22,7 @@ func Parse(r io.Reader) ([]Token, error) {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return nil, err
+			return nil, fmt.Errorf("document %d: %w", len(out)+1, err)
 		}
 		out = append(out, t)
 	}
@@ -31,9 +31,9 @@ func Parse(r io.Reader) ([]Token, error) {
 
 // ParseFile reads and decodes spec documents from path.
 func ParseFile(path string) ([]Token, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // G304: reading the spec files the user named is the purpose of apply.
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read spec: %w", err)
 	}
 	defer f.Close()
 	tokens, err := Parse(f)
@@ -52,7 +52,7 @@ func Load(paths ...string) ([]Token, error) {
 	for _, p := range paths {
 		info, err := os.Stat(p)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read spec: %w", err)
 		}
 		if !info.IsDir() {
 			ts, err := ParseFile(p)
@@ -80,7 +80,7 @@ func Load(paths ...string) ([]Token, error) {
 			return nil
 		})
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("walk %s: %w", p, err)
 		}
 	}
 	return all, nil

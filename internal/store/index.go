@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -76,7 +77,7 @@ func DefaultPath() (string, error) {
 	if base == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("resolve home directory: %w", err)
 		}
 		base = filepath.Join(home, "Library", "Application Support")
 	}
@@ -150,21 +151,19 @@ func (p *Profile) Delete(name string) {
 // without affecting the profile.
 func (p *Profile) All() map[string]Entry {
 	out := make(map[string]Entry, len(p.Tokens))
-	for k, v := range p.Tokens {
-		out[k] = v
-	}
+	maps.Copy(out, p.Tokens)
 	return out
 }
 
 // Load reads the index file at path. A missing file yields an empty index.
 // An unsupported version is rejected. A v1 file is migrated in memory.
 func Load(path string) (*Index, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // G304: the index path is chosen by cft, not by untrusted input.
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return NewIndex(), nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("open index: %w", err)
 	}
 	defer f.Close()
 	return decode(f)
@@ -181,11 +180,12 @@ func Load(path string) (*Index, error) {
 // 0600 if missing.
 func WithLock(path string, fn func(*Index) error) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
+		return fmt.Errorf("create index directory: %w", err)
 	}
+	//nolint:gosec // G304: the index path is chosen by cft, not by untrusted input.
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
-		return err
+		return fmt.Errorf("open index: %w", err)
 	}
 	defer f.Close()
 
@@ -201,8 +201,7 @@ func WithLock(path string, fn func(*Index) error) error {
 		return err
 	}
 	if err := fn(idx); err != nil {
-		var pe *PartialError
-		if errors.As(err, &pe) {
+		if _, ok := errors.AsType[*PartialError](err); ok {
 			if werr := rewrite(f, idx); werr != nil {
 				return errors.Join(err, werr)
 			}
@@ -223,11 +222,11 @@ type rawIndex struct {
 
 func decode(f *os.File) (*Index, error) {
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read index: %w", err)
 	}
 	info, err := f.Stat()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read index: %w", err)
 	}
 	if info.Size() == 0 {
 		return NewIndex(), nil
@@ -268,15 +267,18 @@ func decode(f *os.File) (*Index, error) {
 
 func rewrite(f *os.File, idx *Index) error {
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		return err
+		return fmt.Errorf("write index: %w", err)
 	}
 	if err := f.Truncate(0); err != nil {
-		return err
+		return fmt.Errorf("write index: %w", err)
 	}
 	enc := json.NewEncoder(f)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(idx); err != nil {
-		return err
+		return fmt.Errorf("write index: %w", err)
 	}
-	return f.Sync()
+	if err := f.Sync(); err != nil {
+		return fmt.Errorf("write index: %w", err)
+	}
+	return nil
 }

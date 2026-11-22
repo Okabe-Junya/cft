@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 	"testing"
 
@@ -10,6 +11,8 @@ import (
 )
 
 func TestBuildEnv_ReplacesExisting(t *testing.T) {
+	t.Parallel()
+
 	base := []string{"HOME=/u/me", EnvName + "=old", "PATH=/bin"}
 	got := buildEnv(base, "new")
 	want := []string{"HOME=/u/me", EnvName + "=new", "PATH=/bin"}
@@ -23,6 +26,8 @@ func TestBuildEnv_ReplacesExisting(t *testing.T) {
 }
 
 func TestBuildEnv_AppendsWhenAbsent(t *testing.T) {
+	t.Parallel()
+
 	base := []string{"HOME=/u/me"}
 	got := buildEnv(base, "v")
 	want := []string{"HOME=/u/me", EnvName + "=v"}
@@ -32,6 +37,8 @@ func TestBuildEnv_AppendsWhenAbsent(t *testing.T) {
 }
 
 func TestSplitExecArgs(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		args      []string
@@ -68,6 +75,8 @@ func TestSplitExecArgs(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
 			name, argv, err := splitExecArgs(c.args, c.dashIdx)
 			if c.wantErrSS != "" {
 				if err == nil || !strings.Contains(err.Error(), c.wantErrSS) {
@@ -91,6 +100,8 @@ type capturedExec struct {
 }
 
 func TestExec_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	idx := store.NewIndex()
 	idx.Profile(store.DefaultProfile).Set("dns-editor", store.Entry{ID: "id1"})
 
@@ -122,6 +133,8 @@ func TestExec_HappyPath(t *testing.T) {
 }
 
 func TestExec_UnknownToken(t *testing.T) {
+	t.Parallel()
+
 	cmd := newExecCmd(
 		func() (*store.Index, error) { return store.NewIndex(), nil },
 		keychain.NewFake(),
@@ -137,6 +150,8 @@ func TestExec_UnknownToken(t *testing.T) {
 }
 
 func TestExec_MissingKeychainValueHintsRotate(t *testing.T) {
+	t.Parallel()
+
 	idx := store.NewIndex()
 	idx.Profile(store.DefaultProfile).Set("known", store.Entry{ID: "id1"})
 
@@ -155,6 +170,8 @@ func TestExec_MissingKeychainValueHintsRotate(t *testing.T) {
 }
 
 func TestExec_NoSeparator(t *testing.T) {
+	t.Parallel()
+
 	cmd := newExecCmd(
 		func() (*store.Index, error) { return store.NewIndex(), nil },
 		keychain.NewFake(),
@@ -182,10 +199,5 @@ func equalStrings(a, b []string) bool {
 }
 
 func containsString(ss []string, s string) bool {
-	for _, x := range ss {
-		if x == s {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(ss, s)
 }

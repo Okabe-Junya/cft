@@ -9,6 +9,8 @@ import (
 )
 
 func TestSchemaCmd_PrintsEmbeddedSchema(t *testing.T) {
+	t.Parallel()
+
 	cmd := newSchemaCmd()
 	var out bytes.Buffer
 	cmd.SetOut(&out)

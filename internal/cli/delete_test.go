@@ -49,6 +49,8 @@ func seedDelete(t *testing.T, stdin string) (string, keychain.Store, *fakeDelete
 }
 
 func TestDelete_HappyPath_OrderAndCleanup(t *testing.T) {
+	t.Parallel()
+
 	indexFile, ks, d, deps := seedDelete(t, "y\n")
 	cmd := newDeleteCmd(deps)
 	cmd.SetArgs([]string{"dns-editor"})
@@ -81,6 +83,8 @@ func TestDelete_HappyPath_OrderAndCleanup(t *testing.T) {
 }
 
 func TestDelete_YesFlagSkipsPrompt(t *testing.T) {
+	t.Parallel()
+
 	_, _, d, deps := seedDelete(t, "")
 	cmd := newDeleteCmd(deps)
 	cmd.SetArgs([]string{"-y", "dns-editor"})
@@ -96,6 +100,8 @@ func TestDelete_YesFlagSkipsPrompt(t *testing.T) {
 }
 
 func TestDelete_DeclineAborts(t *testing.T) {
+	t.Parallel()
+
 	indexFile, ks, d, deps := seedDelete(t, "n\n")
 	cmd := newDeleteCmd(deps)
 	cmd.SetArgs([]string{"dns-editor"})
@@ -118,6 +124,8 @@ func TestDelete_DeclineAborts(t *testing.T) {
 }
 
 func TestDelete_404FromCloudflare_ContinuesCleanup(t *testing.T) {
+	t.Parallel()
+
 	indexFile, ks, d, deps := seedDelete(t, "y\n")
 	d.err = &cfapi.Error{Status: 404, Codes: []int{1001}, Messages: []string{"not found"}}
 	cmd := newDeleteCmd(deps)
@@ -142,6 +150,8 @@ func TestDelete_404FromCloudflare_ContinuesCleanup(t *testing.T) {
 }
 
 func TestDelete_5xxFromCloudflare_StopsAndPreservesState(t *testing.T) {
+	t.Parallel()
+
 	indexFile, ks, d, deps := seedDelete(t, "y\n")
 	d.err = &cfapi.Error{Status: 503, Messages: []string{"service unavailable"}}
 	cmd := newDeleteCmd(deps)
@@ -164,7 +174,9 @@ func TestDelete_5xxFromCloudflare_StopsAndPreservesState(t *testing.T) {
 }
 
 func TestDelete_UnknownToken(t *testing.T) {
-	_, _, _, deps := seedDelete(t, "")
+	t.Parallel()
+
+	_, _, d, deps := seedDelete(t, "")
 	cmd := newDeleteCmd(deps)
 	cmd.SetArgs([]string{"-y", "missing"})
 	cmd.SetOut(&bytes.Buffer{})
@@ -174,9 +186,14 @@ func TestDelete_UnknownToken(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "not found in profile") {
 		t.Errorf("err = %v", err)
 	}
+	if len(d.calls) != 0 {
+		t.Errorf("DeleteToken called for an unknown token: %v", d.calls)
+	}
 }
 
 func TestDelete_NoBootstrap_ExitsAuth(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	indexFile := filepath.Join(dir, "index.json")
 	if err := store.WithLock(indexFile, func(i *store.Index) error {

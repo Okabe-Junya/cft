@@ -3,9 +3,9 @@ package store
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -17,6 +17,8 @@ func tempIndexPath(t *testing.T) string {
 }
 
 func TestLoad_MissingFileReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
 	idx, err := Load(filepath.Join(t.TempDir(), "missing.json"))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -33,6 +35,8 @@ func TestLoad_MissingFileReturnsEmpty(t *testing.T) {
 }
 
 func TestWithLock_CreatesFileAndPersists(t *testing.T) {
+	t.Parallel()
+
 	path := tempIndexPath(t)
 	err := WithLock(path, func(i *Index) error {
 		i.Profile(DefaultProfile).Set("foo", Entry{ID: "abc123", Expires: "2026-12-31"})
@@ -65,6 +69,8 @@ func TestWithLock_CreatesFileAndPersists(t *testing.T) {
 }
 
 func TestWithLock_FnErrorRollsBack(t *testing.T) {
+	t.Parallel()
+
 	path := tempIndexPath(t)
 
 	// Seed with one entry.
@@ -76,7 +82,7 @@ func TestWithLock_FnErrorRollsBack(t *testing.T) {
 	}
 
 	// Attempt a mutation that fails inside fn.
-	sentinel := errString("boom")
+	sentinel := errors.New("boom")
 	err := WithLock(path, func(i *Index) error {
 		i.Profile(DefaultProfile).Set("foo", Entry{ID: "f1"})
 		return sentinel
@@ -99,6 +105,8 @@ func TestWithLock_FnErrorRollsBack(t *testing.T) {
 }
 
 func TestWithLock_PartialErrorPersistsMutations(t *testing.T) {
+	t.Parallel()
+
 	path := tempIndexPath(t)
 
 	if err := WithLock(path, func(i *Index) error {
@@ -108,7 +116,7 @@ func TestWithLock_PartialErrorPersistsMutations(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	inner := fmt.Errorf("boom")
+	inner := errors.New("boom")
 	err := WithLock(path, func(i *Index) error {
 		i.Profile(DefaultProfile).Set("kept", Entry{ID: "k1"})
 		return &PartialError{Err: inner}
@@ -119,8 +127,7 @@ func TestWithLock_PartialErrorPersistsMutations(t *testing.T) {
 	if !errors.Is(err, inner) {
 		t.Errorf("err does not wrap inner: %v", err)
 	}
-	var pe *PartialError
-	if !errors.As(err, &pe) {
+	if _, ok := errors.AsType[*PartialError](err); !ok {
 		t.Errorf("err is not *PartialError: %v", err)
 	}
 
@@ -137,6 +144,8 @@ func TestWithLock_PartialErrorPersistsMutations(t *testing.T) {
 }
 
 func TestIndex_GetSetDeleteAll(t *testing.T) {
+	t.Parallel()
+
 	idx := NewIndex()
 	idx.Profile(DefaultProfile).Set("a", Entry{ID: "1"})
 	idx.Profile(DefaultProfile).Set("b", Entry{ID: "2"})
@@ -163,12 +172,14 @@ func TestIndex_GetSetDeleteAll(t *testing.T) {
 }
 
 func TestConcurrentWithLock_NoLostUpdates(t *testing.T) {
+	t.Parallel()
+
 	path := tempIndexPath(t)
 	const N = 50
 
 	var wg sync.WaitGroup
 	wg.Add(N)
-	for k := 0; k < N; k++ {
+	for k := range N {
 		go func(k int) {
 			defer wg.Done()
 			err := WithLock(path, func(i *Index) error {
@@ -192,6 +203,8 @@ func TestConcurrentWithLock_NoLostUpdates(t *testing.T) {
 }
 
 func TestLoad_MigratesV1ToDefaultProfile(t *testing.T) {
+	t.Parallel()
+
 	path := tempIndexPath(t)
 	v1 := []byte(`{"version":1,"tokens":{"dns-editor":{"id":"abc","expires":"2027-01-01"}}}`)
 	if err := os.WriteFile(path, v1, 0o600); err != nil {
@@ -222,6 +235,8 @@ func TestLoad_MigratesV1ToDefaultProfile(t *testing.T) {
 }
 
 func TestProfiles_AreIsolated(t *testing.T) {
+	t.Parallel()
+
 	path := tempIndexPath(t)
 	if err := WithLock(path, func(i *Index) error {
 		// Same token name in two profiles must not collide.
@@ -251,6 +266,8 @@ func TestProfiles_AreIsolated(t *testing.T) {
 }
 
 func TestDeleteProfile_ClearsCurrent(t *testing.T) {
+	t.Parallel()
+
 	idx := NewIndex()
 	idx.Profile("gone").Set("t", Entry{ID: "1"})
 	idx.Current = "gone"
@@ -264,6 +281,8 @@ func TestDeleteProfile_ClearsCurrent(t *testing.T) {
 }
 
 func TestLoad_UnsupportedVersion(t *testing.T) {
+	t.Parallel()
+
 	path := tempIndexPath(t)
 	raw := []byte(`{"version": 99, "tokens": {}}`)
 	if err := os.WriteFile(path, raw, 0o600); err != nil {
@@ -276,6 +295,8 @@ func TestLoad_UnsupportedVersion(t *testing.T) {
 }
 
 func TestLoad_GarbageJSON(t *testing.T) {
+	t.Parallel()
+
 	path := tempIndexPath(t)
 	if err := os.WriteFile(path, []byte("not json"), 0o600); err != nil {
 		t.Fatal(err)
@@ -287,6 +308,8 @@ func TestLoad_GarbageJSON(t *testing.T) {
 }
 
 func TestWithLock_PreservesFormatting(t *testing.T) {
+	t.Parallel()
+
 	path := tempIndexPath(t)
 	if err := WithLock(path, func(i *Index) error {
 		i.Profile(DefaultProfile).Set("x", Entry{ID: "y"})
@@ -331,24 +354,6 @@ func TestDefaultPath_FallsBackToLibrary(t *testing.T) {
 	}
 }
 
-// errString is a comparable error used as a sentinel in tests.
-type errString string
-
-func (e errString) Error() string { return string(e) }
-
 func name(k int) string {
-	return "name-" + itoa(k)
-}
-
-// itoa avoids importing strconv just for tests; covers small non-negative ints.
-func itoa(k int) string {
-	if k == 0 {
-		return "0"
-	}
-	digits := []byte{}
-	for k > 0 {
-		digits = append([]byte{byte('0' + k%10)}, digits...)
-		k /= 10
-	}
-	return string(digits)
+	return "name-" + strconv.Itoa(k)
 }

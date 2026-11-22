@@ -75,42 +75,45 @@ func newDeleteCmd(deps deleteDeps) *cobra.Command {
 				}
 			}
 
-			bootstrap, err := deps.keychain.Get(keychain.ServiceBootstrap, profile)
+			bootstrap, err := loadBootstrap(deps.keychain, profile)
 			if err != nil {
-				if errors.Is(err, keychain.ErrNotFound) {
-					return withExit(ExitAuth, fmt.Errorf("bootstrap token not found for profile %q. Run: cft login --profile %s", profile, profile))
-				}
 				return err
 			}
-			client := deps.newClient(string(bootstrap))
-
-			// Step 1: Cloudflare. 404 means it is already gone — keep going.
-			if err := client.DeleteToken(cmd.Context(), entry.ID); err != nil {
-				var apiErr *cfapi.Error
-				if !errors.As(err, &apiErr) || !apiErr.NotFound() {
-					return fmt.Errorf("delete cloudflare token: %w", err)
-				}
-				fmt.Fprintf(cmd.ErrOrStderr(), "warning: Cloudflare returned 404 for %s; continuing with local cleanup\n", entry.ID)
+			if err := deleteToken(cmd, deps, deps.newClient(bootstrap), path, profile, name, entry.ID); err != nil {
+				return err
 			}
-
-			// Step 2: Keychain. Already idempotent.
-			if err := deps.keychain.Delete(keychain.ServiceTokens, keychain.TokenAccount(profile, name)); err != nil {
-				return fmt.Errorf("delete keychain value: %w", err)
-			}
-
-			// Step 3: index. Done under the lock so the file shows the new
-			// state atomically.
-			if err := deps.withLock(path, func(i *store.Index) error {
-				i.Profile(profile).Delete(name)
-				return nil
-			}); err != nil {
-				return fmt.Errorf("update index: %w", err)
-			}
-
 			fmt.Fprintf(cmd.OutOrStdout(), "deleted %q\n", name)
 			return nil
 		},
 	}
 	cmd.Flags().BoolVarP(&assumeYes, "yes", "y", false, "skip confirmation prompt")
 	return cmd
+}
+
+// deleteToken removes the token from Cloudflare, the Keychain, and the index,
+// in that order.
+func deleteToken(cmd *cobra.Command, deps deleteDeps, client deleter, path, profile, name, id string) error {
+	// Step 1: Cloudflare. 404 means it is already gone — keep going.
+	if err := client.DeleteToken(cmd.Context(), id); err != nil {
+		var apiErr *cfapi.Error
+		if !errors.As(err, &apiErr) || !apiErr.NotFound() {
+			return fmt.Errorf("delete cloudflare token: %w", err)
+		}
+		fmt.Fprintf(cmd.ErrOrStderr(), "warning: Cloudflare returned 404 for %s; continuing with local cleanup\n", id)
+	}
+
+	// Step 2: Keychain. Already idempotent.
+	if err := deps.keychain.Delete(keychain.ServiceTokens, keychain.TokenAccount(profile, name)); err != nil {
+		return fmt.Errorf("delete keychain value: %w", err)
+	}
+
+	// Step 3: index. Done under the lock so the file shows the new
+	// state atomically.
+	if err := deps.withLock(path, func(i *store.Index) error {
+		i.Profile(profile).Delete(name)
+		return nil
+	}); err != nil {
+		return fmt.Errorf("update index: %w", err)
+	}
+	return nil
 }

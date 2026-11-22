@@ -7,6 +7,8 @@ import (
 )
 
 func TestConfirm(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		input string
 		want  bool
@@ -22,6 +24,8 @@ func TestConfirm(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.input, func(t *testing.T) {
+			t.Parallel()
+
 			var prompt bytes.Buffer
 			got, err := confirm(strings.NewReader(c.input), &prompt, "delete?")
 			if err != nil {

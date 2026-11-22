@@ -1,12 +1,10 @@
 package cli
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"sort"
-	"text/tabwriter"
 
 	"github.com/Okabe-Junya/cft/internal/keychain"
 	"github.com/Okabe-Junya/cft/internal/store"
@@ -210,7 +208,7 @@ func runProfileList(cmd *cobra.Command, deps profileDeps) error {
 	if err != nil {
 		return err
 	}
-	tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+	tw := newTable(cmd.OutOrStdout())
 	defer tw.Flush()
 	fmt.Fprintln(tw, "CURRENT\tPROFILE\tBOOTSTRAP\tTOKENS")
 	for _, r := range rows {
@@ -236,12 +234,7 @@ func runProfileListJSON(cmd *cobra.Command, deps profileDeps) error {
 	out := struct {
 		Profiles []profileRow `json:"profiles"`
 	}{Profiles: rows}
-	b, err := json.MarshalIndent(out, "", "  ")
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintln(cmd.OutOrStdout(), string(b))
-	return err
+	return writeJSON(cmd.OutOrStdout(), out)
 }
 
 func newProfileUseCmd(deps profileDeps) *cobra.Command {
@@ -255,7 +248,9 @@ func newProfileUseCmd(deps profileDeps) *cobra.Command {
 			// Warn (do not block) if the target has no credentials yet, so a
 			// typo is visible but pre-staging a profile name stays possible.
 			if _, err := deps.keychain.Get(keychain.ServiceBootstrap, name); errors.Is(err, keychain.ErrNotFound) {
-				fmt.Fprintf(cmd.ErrOrStderr(), "warning: profile %q has no bootstrap token yet; run `cft profile add %s` or `cft login --profile %s`\n", name, name, name)
+				fmt.Fprintf(cmd.ErrOrStderr(),
+					"warning: profile %q has no bootstrap token yet; run `cft profile add %s` or `cft login --profile %s`\n",
+					name, name, name)
 			}
 			path, err := deps.indexPath()
 			if err != nil {

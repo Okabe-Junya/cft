@@ -7,6 +7,8 @@ import (
 )
 
 func TestRootCommand_Help(t *testing.T) {
+	t.Parallel()
+
 	cmd := newRootCmd("test")
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -21,6 +23,8 @@ func TestRootCommand_Help(t *testing.T) {
 }
 
 func TestRootCommand_Version(t *testing.T) {
+	t.Parallel()
+
 	cmd := newRootCmd("1.2.3")
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -38,6 +42,8 @@ func TestRootCommand_Version(t *testing.T) {
 // AddCommand removals during refactors: cft --help must list every advertised
 // subcommand.
 func TestRootCommand_AllSubcommandsRegistered(t *testing.T) {
+	t.Parallel()
+
 	cmd := newRootCmd("test")
 	var out bytes.Buffer
 	cmd.SetOut(&out)

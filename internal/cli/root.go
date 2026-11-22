@@ -23,30 +23,45 @@ const (
 // Errors that do not implement it fall through to ExitRuntime.
 type exitCoder interface{ ExitCode() int }
 
-// exitErr is the canonical implementation of exitCoder. Subcommands wrap
+// exitError is the canonical implementation of exitCoder. Subcommands wrap
 // their underlying error so the message surface stays intact for users.
-type exitErr struct {
+type exitError struct {
 	code int
 	err  error
 }
 
-func (e *exitErr) Error() string { return e.err.Error() }
-func (e *exitErr) Unwrap() error { return e.err }
-func (e *exitErr) ExitCode() int { return e.code }
+func (e *exitError) Error() string { return e.err.Error() }
+func (e *exitError) Unwrap() error { return e.err }
+func (e *exitError) ExitCode() int { return e.code }
 
 // withExit decorates err with code. err is returned unchanged when nil.
 func withExit(code int, err error) error {
 	if err == nil {
 		return nil
 	}
-	return &exitErr{code: code, err: err}
+	return &exitError{code: code, err: err}
+}
+
+// loadBootstrap reads the profile's bootstrap token, turning a missing entry
+// into an ExitAuth error that tells the user how to log in.
+func loadBootstrap(ks keychain.Store, profile string) (string, error) {
+	b, err := ks.Get(keychain.ServiceBootstrap, profile)
+	if errors.Is(err, keychain.ErrNotFound) {
+		return "", withExit(ExitAuth,
+			fmt.Errorf("bootstrap token not found for profile %q. Run: cft login --profile %s", profile, profile))
+	}
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }
 
 func newRootCmd(version string) *cobra.Command {
 	root := &cobra.Command{
-		Use:           "cft",
-		Short:         "Cloudflare API token manager backed by the macOS Keychain",
-		Long:          "cft applies YAML specs for Cloudflare API tokens and stores the issued values in the macOS Keychain, not on disk.",
+		Use:   "cft",
+		Short: "Cloudflare API token manager backed by the macOS Keychain",
+		Long: "cft applies YAML specs for Cloudflare API tokens and stores the issued values " +
+			"in the macOS Keychain, not on disk.",
 		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -82,17 +97,6 @@ type deferredStore struct {
 	allowAnyApp *bool
 }
 
-func (d deferredStore) store() keychain.Store {
-	var opts []keychain.Option
-	if *d.path != "" {
-		opts = append(opts, keychain.WithPath(*d.path))
-	}
-	if d.allowAnyApp != nil && *d.allowAnyApp {
-		opts = append(opts, keychain.WithAllowAnyApp())
-	}
-	return keychain.New(opts...)
-}
-
 func (d deferredStore) Get(service, account string) ([]byte, error) {
 	return d.store().Get(service, account)
 }
@@ -107,6 +111,17 @@ func (d deferredStore) Delete(service, account string) error {
 
 func (d deferredStore) List(service string) ([]string, error) {
 	return d.store().List(service)
+}
+
+func (d deferredStore) store() keychain.Store {
+	var opts []keychain.Option
+	if *d.path != "" {
+		opts = append(opts, keychain.WithPath(*d.path))
+	}
+	if d.allowAnyApp != nil && *d.allowAnyApp {
+		opts = append(opts, keychain.WithAllowAnyApp())
+	}
+	return keychain.New(opts...)
 }
 
 // Execute runs the cobra command tree and returns a process exit code.

@@ -1,11 +1,43 @@
 version: "2"
 
 linters:
-  default: standard # errcheck, govet, ineffassign, staticcheck, unused
-  enable:
-    - errorlint
-    - copyloopvar
+  # Every linter is on; each one turned off below states why.
+  default: all
+  disable:
+    # Measures the same cyclomatic complexity as gocyclo, which stays on
+    # together with gocognit.
+    - cyclop
+    # An import allowlist would restate the require block of go.mod.
+    - depguard
+    # Every error here is a user-facing CLI message that no caller matches
+    # on; errors that callers do match are sentinels (keychain.ErrNotFound).
+    - err113
+    # Partial struct literals relying on zero values are idiomatic Go
+    # (cobra.Command, option structs); the deprecated v1 is listed too.
+    - exhaustruct
+    - exhaustruct_v5
+    # Deprecated; gomodguard_v2 replaces it.
+    - gomodguard
+    # Forbids `if err := f(); err != nil`, the scoping Effective Go recommends.
+    - noinlineerr
+    # Blank-line layout rules beyond gofmt that the Go style guides do not
+    # ask for; the deprecated wsl v1 is listed too.
+    - nlreturn
+    - wsl
+    - wsl_v5
+    # Tests are white-box by design and exercise unexported helpers.
+    - testpackage
+    # Go naming guidance favours short names in small scopes.
+    - varnamelen
   settings:
+    ireturn:
+      allow:
+        - anon
+        - empty
+        - error
+        - stdlib
+        # keychain.New picks the platform backend behind this interface.
+        - github.com/Okabe-Junya/cft/internal/keychain.Store
     errcheck:
       exclude-functions:
         # CLI output to stdout/stderr/tabwriter; a failed terminal write has
@@ -17,7 +49,35 @@ linters:
         # Read paths and Sync-protected write paths only (store.rewrite calls
         # f.Sync() before Close).
         - (*os.File).Close
+    mnd:
+      # Octal permission bits read clearer inline than as named constants.
+      ignored-functions:
+        - ^os\.(MkdirAll|OpenFile)$
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    wrapcheck:
+      # Packages of this module already add their own context.
+      ignore-package-globs:
+        - github.com/Okabe-Junya/cft/*
+  exclusions:
+    rules:
+      # Table-driven tests are long and repeat fixture literals by nature.
+      # Fixtures also use literal tokens and temp-dir paths, mirror the
+      # snake_case JSON of the Cloudflare API, and test helpers hand errors
+      # straight to assertions.
+      - path: _test\.go
+        linters:
+          - funlen
+          - goconst
+          - gosec
+          - tagliatelle
+          - wrapcheck
 
 formatters:
+  # Not enabled: gofmt (gofumpt is a stricter superset), gci (goimports
+  # already groups imports), golines (lll already bounds line length),
+  # swaggo (no Swagger comments).
   enable:
+    - gofumpt
     - goimports

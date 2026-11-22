@@ -2,6 +2,7 @@ package cfapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -38,6 +39,7 @@ type Token struct {
 // freshly-generated value (only ever returned at create time).
 type CreatedToken struct {
 	Token
+
 	Value string
 }
 
@@ -70,13 +72,11 @@ func (c *Client) CreateToken(ctx context.Context, s TokenSpec) (*CreatedToken, e
 		return nil, mapError(err)
 	}
 	return &CreatedToken{
-		Token: Token{
-			ID:        resp.ID,
-			Name:      resp.Name,
-			Status:    string(resp.Status),
-			ExpiresOn: rfc3339OrEmpty(resp.ExpiresOn),
-		},
-		Value: string(resp.Value),
+		ID:        resp.ID,
+		Name:      resp.Name,
+		Status:    string(resp.Status),
+		ExpiresOn: rfc3339OrEmpty(resp.ExpiresOn),
+		Value:     resp.Value,
 	}, nil
 }
 
@@ -106,9 +106,9 @@ func (c *Client) RollToken(ctx context.Context, id string) (string, error) {
 		return "", mapError(err)
 	}
 	if v == nil {
-		return "", fmt.Errorf("cfapi: roll token returned empty value")
+		return "", errors.New("cfapi: roll token returned empty value")
 	}
-	return string(*v), nil
+	return *v, nil
 }
 
 // ListTokens returns all tokens owned by the authenticated user. Uses
